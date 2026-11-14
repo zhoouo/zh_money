@@ -824,7 +824,7 @@ input[type="password"]:focus {
 }
 
 .col-action {
-  width: 84px;
+  width: 54px;
 }
 
 .col-hidden {
@@ -934,25 +934,27 @@ input[type="password"]:focus {
   box-shadow: 0 0 0 3px rgba(181, 147, 90, 0.16);
 }
 
-/* 列操作按鈕（常駐淡顯複製鈕 + 刪除鈕） */
+/* 列操作按鈕（刪除鈕） */
 .row-actions {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
 }
 
-.copy-btn,
 .del-btn {
   font-family: var(--font);
   width: 36px;
   height: 36px;
   border-radius: var(--radius-xs);
+  border: 1.5px solid rgba(181, 71, 42, 0.3);
   background: transparent;
+  color: var(--red);
+  font-size: 0.95rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0.65;
   transition:
     opacity var(--dur-fast) ease,
     background-color var(--dur-fast) ease,
@@ -960,39 +962,13 @@ input[type="password"]:focus {
     transform 100ms var(--ease-out);
 }
 
-.copy-btn {
-  border: 1.5px solid rgba(181, 147, 90, 0.32);
-  color: var(--gold-dark);
-  font-size: 0.88rem;
-  opacity: 0.55;
-}
-
-.del-btn {
-  border: 1.5px solid rgba(181, 71, 42, 0.3);
-  color: var(--red);
-  font-size: 0.95rem;
-  opacity: 0.65;
-}
-
 @media (hover: none) {
-  .copy-btn,
   .del-btn {
     opacity: 0.85;
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .data-table tbody tr:hover .copy-btn,
-  .data-table tbody tr:focus-within .copy-btn {
-    opacity: 0.85;
-  }
-
-  .copy-btn:hover {
-    background: rgba(181, 147, 90, 0.14);
-    border-color: var(--gold);
-    opacity: 1;
-  }
-
   .del-btn:hover {
     background: rgba(181, 71, 42, 0.12);
     border-color: var(--red);
@@ -1000,7 +976,6 @@ input[type="password"]:focus {
   }
 }
 
-.copy-btn:active,
 .del-btn:active {
   transform: scale(0.92);
 }
@@ -1447,6 +1422,7 @@ input[type="password"]:focus {
   align-items: flex-start;
   justify-content: center;
   cursor: zoom-in;
+  user-select: none;
 }
 
 .ocr-photo-viewport.zoomed {
@@ -1459,6 +1435,8 @@ input[type="password"]:focus {
   height: auto;
   border-radius: var(--radius-xs);
   box-shadow: 0 6px 24px rgba(44, 36, 22, 0.16);
+  -webkit-user-drag: none;
+  user-select: none;
   transition: transform var(--dur-ui) var(--ease-out);
 }
 
@@ -2408,7 +2386,7 @@ input[type="password"]:focus {
               <button class="btn btn-sm" id="ocr-zoom-btn" type="button">🔍 放大看字</button>
             </div>
             <div class="ocr-photo-viewport" id="ocr-photo-viewport" title="點擊切換放大檢視">
-              <img id="ocr-photo-img" alt="手寫筆記原圖" />
+              <img id="ocr-photo-img" alt="手寫筆記原圖" draggable="false" />
             </div>
           </div>
         </div>
@@ -2909,16 +2887,20 @@ function bindEvents() {
   document.getElementById("ocr-apply-btn").addEventListener("click", commitOcrRowsToMain);
 
   const photoViewport = document.getElementById("ocr-photo-viewport");
+  const photoImg = document.getElementById("ocr-photo-img");
   const zoomBtn = document.getElementById("ocr-zoom-btn");
   const togglePhotoZoom = () => {
     const zoomed = photoViewport.classList.toggle("zoomed");
     zoomBtn.textContent = zoomed ? "🔍 縮回全圖" : "🔍 放大看字";
   };
   photoViewport.addEventListener("click", togglePhotoZoom);
+  photoViewport.addEventListener("dragstart", (e) => e.preventDefault());
+  photoImg.addEventListener("dragstart", (e) => e.preventDefault());
   zoomBtn.addEventListener("click", togglePhotoZoom);
 
-  // 支援直接 Ctrl+V 貼上圖片或拖曳圖片進視窗
+  // 支援直接 Ctrl+V 貼上圖片或拖曳圖片進視窗（OCR 校對視窗開啟時不觸發）
   document.addEventListener("paste", (e) => {
+    if (document.getElementById("ocr-dialog")?.open) return;
     const items = Array.from(e.clipboardData?.items || []);
     const imageFiles = items
       .filter((item) => item.type.startsWith("image/"))
@@ -2933,21 +2915,46 @@ function bindEvents() {
   });
 
   let dragDepth = 0;
+  let internalDragActive = false;
+  const shouldAcceptExternalFileDrop = (e) => {
+    if (internalDragActive) return false;
+    if (document.getElementById("ocr-dialog")?.open) return false;
+    return Array.from(e.dataTransfer?.types || []).includes("Files");
+  };
+  document.addEventListener("dragstart", () => {
+    internalDragActive = true;
+  });
+  document.addEventListener("dragend", () => {
+    internalDragActive = false;
+    dragDepth = 0;
+    document.getElementById("drop-overlay").classList.remove("active");
+  });
   document.addEventListener("dragenter", (e) => {
-    if (!Array.from(e.dataTransfer?.types || []).includes("Files")) return;
+    if (!shouldAcceptExternalFileDrop(e)) return;
     dragDepth++;
     document.getElementById("drop-overlay").classList.add("active");
   });
   document.addEventListener("dragleave", () => {
+    if (dragDepth === 0) return;
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0) document.getElementById("drop-overlay").classList.remove("active");
   });
   document.addEventListener("dragover", (e) => {
-    if (Array.from(e.dataTransfer?.types || []).includes("Files")) e.preventDefault();
+    if (Array.from(e.dataTransfer?.types || []).includes("Files")) {
+      e.preventDefault();
+      if (!shouldAcceptExternalFileDrop(e) && e.dataTransfer) {
+        e.dataTransfer.dropEffect = "none";
+      }
+    }
   });
   document.addEventListener("drop", (e) => {
     dragDepth = 0;
     document.getElementById("drop-overlay").classList.remove("active");
+    if (internalDragActive || document.getElementById("ocr-dialog")?.open) {
+      e.preventDefault();
+      internalDragActive = false;
+      return;
+    }
     const files = Array.from(e.dataTransfer?.files || []).filter((f) =>
       f.type.startsWith("image/"),
     );
@@ -3626,7 +3633,6 @@ function createRowTr(row) {
     </td>
     <td>
       <div class="row-actions">
-        <button class="copy-btn" data-row-id="${row.id}" type="button" title="複製此列到下一行">📋</button>
         <button class="del-btn" data-row-id="${row.id}" type="button" title="刪除此列">✕</button>
       </div>
     </td>
@@ -3733,7 +3739,6 @@ function createRowTr(row) {
     });
   });
 
-  tr.querySelector(".copy-btn").addEventListener("click", () => copyRow(row.id));
   tr.querySelector(".del-btn").addEventListener("click", () => openDeleteConfirm(row.id));
 
   return tr;
@@ -3898,6 +3903,9 @@ function getValidRows() {
       String(row.fuel).trim() !== "" ||
       String(row.material || "").trim() !== "",
   );
+
+  // 同日期多筆地點在預覽與匯出時以「/」合併、金額加總
+  validRows = mergeRowsBySameDate(validRows);
 
   if (document.getElementById("sort-date-checkbox").checked) {
     validRows = [...validRows].sort((a, b) => {
@@ -4495,16 +4503,58 @@ function normalizeAliasKey(text) {
   return String(text || "").replace(/\s+/g, "").trim();
 }
 
-function learnAliasIfNeeded(rawNote, finalText) {
-  const raw = String(rawNote || "").trim();
-  const fin = String(finalText || "").trim();
-  if (!raw || !fin || raw === fin) return;
+function normalizeSlashAddress(text) {
+  return String(text || "")
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join("/");
+}
+
+function resolveAddressWithAliasMap(rawNote, aliasMap) {
+  const raw = normalizeSlashAddress(rawNote);
+  if (!raw) return "";
+  const direct = aliasMap[normalizeAliasKey(raw)];
+  if (direct?.target) return direct.target;
+  if (raw.includes("/")) {
+    return raw
+      .split("/")
+      .map((seg) => aliasMap[normalizeAliasKey(seg)]?.target || seg)
+      .filter(Boolean)
+      .join("/");
+  }
+  return raw;
+}
+
+function learnSingleAlias(raw, fin, map) {
+  if (!raw || !fin || raw === fin) return false;
   // 若只是單純在原本字尾補充細節如 (大門平台)，不當作別名改寫
-  if (fin.startsWith(raw)) return;
+  if (fin.startsWith(raw)) return false;
   const key = normalizeAliasKey(raw);
-  if (!key) return;
-  const map = loadAliasMap();
+  if (!key) return false;
   map[key] = { raw, target: fin, updatedAt: Date.now() };
+  return true;
+}
+
+function learnAliasIfNeeded(rawNote, finalText) {
+  const raw = normalizeSlashAddress(rawNote);
+  const fin = normalizeSlashAddress(finalText);
+  if (!raw || !fin || raw === fin) return;
+
+  const map = loadAliasMap();
+  let changed = false;
+
+  const rawParts = raw.split("/").filter(Boolean);
+  const finParts = fin.split("/").filter(Boolean);
+  if (rawParts.length > 1 && rawParts.length === finParts.length) {
+    rawParts.forEach((rp, idx) => {
+      if (learnSingleAlias(rp, finParts[idx], map)) changed = true;
+    });
+  } else {
+    changed = learnSingleAlias(raw, fin, map);
+  }
+
+  if (!changed) return;
   // 限制最多保留 200 筆最近別名
   const entries = Object.entries(map).sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
   saveAliasMap(Object.fromEntries(entries.slice(0, 200)));
@@ -4744,28 +4794,8 @@ function showAmountSuggestions(inputEl, onPicked) {
 }
 
 /* ============================================================
-   複製列 & 自動新增空白列
+   自動新增空白列
    ============================================================ */
-function copyRow(sourceId) {
-  const source = state.rows.find((row) => row.id === sourceId);
-  if (!source) return;
-  const newId = state.nextId++;
-  const newRow = {
-    id: newId,
-    date: null,
-    address: source.address,
-    wage: source.wage,
-    fuel: source.fuel,
-    material: source.material,
-  };
-  const idx = state.rows.findIndex((row) => row.id === sourceId);
-  state.rows.splice(idx + 1, 0, newRow);
-  renderTable();
-  updatePreview();
-  persistState();
-  showToast("已複製到下一列");
-}
-
 function autoAddRowIfNeeded(rowId) {
   const lastRow = state.rows[state.rows.length - 1];
   if (!lastRow || lastRow.id !== rowId) return;
@@ -4944,7 +4974,7 @@ function buildGeminiOcrPrompt(photosCount, defaultMonthNum) {
     ``,
     `【關鍵辨識與格式規則】`,
     `1. 月份判斷：看筆記頁首印的月份（例如 "10 October" 代表 10 月；若頁首寫跨月如 "10/11 Oct./Nov."，請判斷主要月份為幾月並填入 detectedMonthNum，且為每一列正確標記它實際屬於哪一個月 monthNum，例如 26~31 日是 10，1 日是 11）。若照片完全看不到月份，請參考預設月份 ${defaultMonthNum}。`,
-    `2. 同一天多個地點：如果同一天內寫了超過一個不同工地或地址，請**拆成多列**（同一個 date 各自一筆，各自對應屬於它的金額；若金額只寫在當天總數旁，放在主要那一列，不要重複計算金額）。`,
+    `2. 同一天多個地點請合併成同一列：如果同一天內寫了超過一個不同工地或地址，**請不要拆成多列**，請合併為該日期的「單一一列」；地點名稱請依序直接用「/」連接且不留空白（例如「承德路二段101號9F-3/八里羽芳家」、「天境360/康寧路一段175號7F」），並將當天各筆工資、油資、材料費各自加總後填入該列對應欄位。`,
     `3. 略過條件：寫「休」的日子略過；被畫線整行劃掉刪除的項目略過（但如果是沒劃掉、僅在括號內註記「(沒做)」請保留）。`,
     `4. 金額分類與加總：`,
     `   - 寫「支 ...」或主工錢（例如「支 3500+1000」）請自動相加後填入 wage（4500）。`,
@@ -4952,8 +4982,8 @@ function buildGeminiOcrPrompt(photosCount, defaultMonthNum) {
     `   - 買材料或工具配件（例如「(鋸片350)元」、「材料...」）請填入 material。`,
     `   - 若金額旁有「?」問號或手寫字跡模糊沒把握，請設 uncertain: true 並簡短說明 uncertainReason（不超過 12 字）。`,
     `5. 原字與建議對照：`,
-    `   - rawAddress 請忠實讀出筆記紙上原本寫的地點／備註（繁體中文）。`,
-    `   - suggestedAddress：若下方提供「別名對照表」中有對應簡稱，請自動轉為對應的正式名稱；若與「歷史地址」明顯是同一工地僅字跡潦草，可規範成歷史寫法；否則請與 rawAddress 相同。切勿憑空編造照片裡沒有的地址。`,
+    `   - rawAddress 請忠實讀出筆記紙上原本寫的地點／備註（繁體中文，同日多地點以「/」無空白連接）。`,
+    `   - suggestedAddress：若下方「別名對照表」中有對應簡稱（包含「/」分隔的其中一段），請將該段轉為正式名稱；若與「歷史地址」明顯是同一工地僅字跡潦草，可規範成歷史寫法；否則請與 rawAddress 相同。切勿憑空編造照片裡沒有的地址。`,
   ];
 
   if (aliasEntries.length) {
@@ -5052,6 +5082,76 @@ async function requestGeminiOcrBatch(photos, defaultMonthNum, signal) {
   throw lastError || new Error("辨識失敗");
 }
 
+function joinDistinctSlashSegments(values) {
+  const seen = new Set();
+  const out = [];
+  values.forEach((val) => {
+    normalizeSlashAddress(val)
+      .split("/")
+      .filter(Boolean)
+      .forEach((seg) => {
+        const key = normalizeAliasKey(seg);
+        if (!seen.has(key)) {
+          seen.add(key);
+          out.push(seg);
+        }
+      });
+  });
+  return out.join("/");
+}
+
+function sumOptionalNumericStrings(a, b) {
+  const na = parseNumericForTotal(a);
+  const nb = parseNumericForTotal(b);
+  const total = Math.round((na + nb) * 100) / 100;
+  return total > 0 ? String(total) : "";
+}
+
+function mergeIntoExistingRow(base, incoming) {
+  if (base.rawAddress !== undefined || incoming.rawAddress !== undefined) {
+    base.rawAddress = joinDistinctSlashSegments([base.rawAddress, incoming.rawAddress]);
+  }
+  base.address = joinDistinctSlashSegments([base.address, incoming.address]);
+  base.wage = sumOptionalNumericStrings(base.wage, incoming.wage);
+  base.fuel = sumOptionalNumericStrings(base.fuel, incoming.fuel);
+  base.material = sumOptionalNumericStrings(base.material, incoming.material);
+  if ("uncertain" in base || "uncertain" in incoming) {
+    base.uncertain = Boolean(base.uncertain || incoming.uncertain);
+    const reasons = [base.uncertainReason, incoming.uncertainReason].filter(Boolean);
+    base.uncertainReason = Array.from(new Set(reasons)).join("；");
+  }
+}
+
+function mergeRowsBySameDate(rows, { includeMonth = false } = {}) {
+  const merged = [];
+  const indexByDateKey = new Map();
+
+  rows.forEach((row) => {
+    if (row.date === null || row.date === undefined) {
+      merged.push({ ...row, address: normalizeSlashAddress(row.address) });
+      return;
+    }
+    const key = includeMonth ? `${row.monthNum ?? ""}::${row.date}` : String(row.date);
+    const existingIdx = indexByDateKey.get(key);
+    if (existingIdx === undefined) {
+      indexByDateKey.set(key, merged.length);
+      const copy = {
+        ...row,
+        address: normalizeSlashAddress(row.address),
+      };
+      if (row.rawAddress !== undefined) {
+        copy.rawAddress = normalizeSlashAddress(row.rawAddress);
+      }
+      merged.push(copy);
+      return;
+    }
+
+    mergeIntoExistingRow(merged[existingIdx], row);
+  });
+
+  return merged;
+}
+
 async function startOcrPipeline(files) {
   cleanupOcrPhotos();
   ocrState.allRows = [];
@@ -5102,13 +5202,12 @@ async function startOcrPipeline(files) {
       const aliasMap = loadAliasMap();
       (parsed.rows || []).forEach((item) => {
         const photoIdx = start + (typeof item.photoIndex === "number" ? item.photoIndex : 0);
-        const rawAddr = String(item.rawAddress || "").trim();
-        let addr = String(item.suggestedAddress || rawAddr).trim();
+        const rawAddr = normalizeSlashAddress(item.rawAddress);
+        let addr = normalizeSlashAddress(item.suggestedAddress || rawAddr);
 
-        // 若 Gemini 未套用但本地已有確切別名對照，則補套用
-        const aliasHit = aliasMap[normalizeAliasKey(rawAddr)];
-        if (aliasHit && (!addr || addr === rawAddr)) {
-          addr = aliasHit.target;
+        // 若 Gemini 未套用但本地已有確切別名對照（含 / 區段），則補套用
+        if (!addr || addr === rawAddr) {
+          addr = resolveAddressWithAliasMap(rawAddr, aliasMap);
         }
 
         const rowMonthNum =
@@ -5131,6 +5230,8 @@ async function startOcrPipeline(files) {
         });
       });
     }
+
+    ocrState.allRows = mergeRowsBySameDate(ocrState.allRows, { includeMonth: true });
 
     ocrState.targetMonthNum = detectedMonth || fallbackMonthNum;
     const targetMonthKey = MONTH_KEY_BY_NUM[String(ocrState.targetMonthNum)];
@@ -5382,8 +5483,8 @@ async function commitOcrRowsToMain() {
     state.rows.pop();
   }
 
-  rowsToInsert.forEach((item) => {
-    const finalAddr = item.address.trim();
+  mergeRowsBySameDate(rowsToInsert, { includeMonth: true }).forEach((item) => {
+    const finalAddr = normalizeSlashAddress(item.address);
     const w = evaluateAmountExpr(item.wage);
     const f = evaluateAmountExpr(item.fuel);
     const m = evaluateAmountExpr(item.material);
@@ -5396,14 +5497,20 @@ async function commitOcrRowsToMain() {
     if (f && Number(f) > 0) addAmountToHistory("fuel", f);
     if (m && Number(m) > 0) addAmountToHistory("material", m);
 
-    state.rows.push({
-      id: state.nextId++,
-      date: item.date,
-      address: finalAddr,
-      wage: w,
-      fuel: f,
-      material: m,
-    });
+    const existingSameDate =
+      item.date !== null ? state.rows.find((r) => r.date === item.date) : null;
+    if (existingSameDate) {
+      mergeIntoExistingRow(existingSameDate, { address: finalAddr, wage: w, fuel: f, material: m });
+    } else {
+      state.rows.push({
+        id: state.nextId++,
+        date: item.date,
+        address: finalAddr,
+        wage: w,
+        fuel: f,
+        material: m,
+      });
+    }
   });
 
   // 最後補一列空白方便繼續接續填寫
