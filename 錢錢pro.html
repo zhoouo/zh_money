@@ -1,0 +1,5470 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>錢錢</title>
+    <meta name="description" content="錢錢薪資油資報表工具" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- SheetJS for ODS/Excel import & export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+/* ===== CSS 變數 & 基礎重置 ===== */
+:root {
+  --bg: #f5f0e8;
+  --bg-warm: #ede8dc;
+  --bg-deep: #e8e0d0;
+  --gold: #b5935a;
+  --gold-light: #d4b07a;
+  --gold-dark: #8a6a38;
+  --ink: #2c2416;
+  --ink-soft: #5a4e3a;
+  --ink-muted: #766a56;
+  --glass-bg: rgba(255, 252, 244, 0.78);
+  --glass-surface-strong: rgba(255, 252, 244, 0.96);
+  --glass-border: rgba(181, 147, 90, 0.25);
+  --glass-shadow: rgba(90, 70, 30, 0.12);
+  --accent: #7a5c2e;
+  --accent-soft: rgba(122, 92, 46, 0.12);
+  --red: #b5472a;
+  --amber-soft: rgba(235, 168, 52, 0.14);
+  --amber-border: rgba(204, 134, 24, 0.45);
+  --green-soft: rgba(46, 125, 79, 0.12);
+  --green-ink: #256440;
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-xs: 8px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --dur-fast: 150ms;
+  --dur-ui: 220ms;
+  --dur-modal: 280ms;
+  --font: 'Noto Serif TC', system-ui, -apple-system, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 清晰鍵盤焦點指示器 */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2.5px solid var(--gold-dark);
+  outline-offset: 2px;
+}
+
+/* ===== 背景裝飾 ===== */
+.bg-orbs {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.32;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .orb {
+    animation: float 16s ease-in-out infinite;
+  }
+}
+
+.orb-1 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, #d4b07a55, transparent 70%);
+  top: -200px;
+  left: -150px;
+}
+
+.orb-2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #b5935a44, transparent 70%);
+  bottom: -150px;
+  right: -100px;
+  animation-delay: -5s;
+}
+
+.orb-3 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #c9a97055, transparent 70%);
+  top: 40%;
+  left: 55%;
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -24px, 0) scale(1.03);
+  }
+}
+
+/* ===== 容器 ===== */
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 36px 20px 96px;
+}
+
+/* ===== 左右分欄版面 ===== */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.main-layout .glass-card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+@media (min-width: 961px) {
+  .main-layout .preview-section {
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .main-layout .preview-section .preview-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 960px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+/* ===== 頁首 ===== */
+.page-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  font-size: clamp(1.85rem, 4vw, 2.5rem);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold-light), var(--gold-dark));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== 玻璃卡片（半透明材質與深度） ===== */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 8px 32px var(--glass-shadow),
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 -1px 0 rgba(181, 147, 90, 0.1) inset;
+  margin-bottom: 28px;
+  transition: box-shadow var(--dur-ui) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .glass-card:hover {
+    box-shadow:
+      0 14px 44px rgba(90, 70, 30, 0.16),
+      0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 -1px 0 rgba(181, 147, 90, 0.1) inset;
+  }
+}
+
+/* ===== Section 標題 ===== */
+.section-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 20px 24px 0;
+  margin-bottom: 18px;
+}
+
+.section-title h2 {
+  font-size: 1.12rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  flex: 1;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== 設定按鈕（右上角小圓球） ===== */
+.settings-fab {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 50;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  color: var(--gold-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 4px 20px var(--glass-shadow),
+    0 1px 0 rgba(255, 255, 255, 0.65) inset;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .settings-fab:hover {
+    transform: scale(1.06);
+    border-color: var(--gold);
+    color: var(--gold);
+    box-shadow: 0 8px 28px rgba(181, 147, 90, 0.35);
+  }
+}
+
+.settings-fab:active {
+  transform: scale(0.95);
+  transition-duration: 90ms;
+}
+
+.settings-fab-icon {
+  width: 22px;
+  height: 22px;
+}
+
+/* ===== 原生 Top-Layer Dialog 動效與捲動防護 ===== */
+dialog {
+  margin: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  box-shadow: 0 24px 64px rgba(44, 36, 22, 0.3);
+  color: var(--ink);
+  font-family: var(--font);
+  padding: 0;
+  max-width: calc(100vw - 28px);
+  max-height: calc(100dvh - 32px);
+  opacity: 0;
+  transition-property: opacity, transform, display, overlay;
+  transition-duration: var(--dur-modal);
+  transition-timing-function: var(--ease-out);
+  transition-behavior: allow-discrete;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog {
+    transform: scale(0.96) translateY(6px);
+  }
+}
+
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  background-color: rgba(44, 36, 22, 0);
+  backdrop-filter: blur(0px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  transition-property: background-color, backdrop-filter, display, overlay;
+  transition-duration: var(--dur-modal);
+  transition-timing-function: var(--ease-out);
+  transition-behavior: allow-discrete;
+}
+
+:is(dialog[open]):where(:not([data-closing])) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(dialog[open]):where(:not([data-closing])) {
+    transform: scale(1) translateY(0);
+  }
+}
+
+@starting-style {
+  :is(dialog[open]):where(:not([data-closing])) {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @starting-style {
+    :is(dialog[open]):where(:not([data-closing])) {
+      transform: scale(0.96) translateY(6px);
+    }
+  }
+}
+
+:is(dialog[open]):where(:not([data-closing]))::backdrop {
+  background-color: rgba(44, 36, 22, 0.38);
+  backdrop-filter: blur(5px);
+}
+
+@starting-style {
+  :is(dialog[open]):where(:not([data-closing]))::backdrop {
+    background-color: rgba(44, 36, 22, 0);
+    backdrop-filter: blur(0px);
+  }
+}
+
+.dialog-inner {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(100dvh - 36px);
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dialog-header h2 {
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.dialog-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(181, 147, 90, 0.14);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    transform 100ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dialog-close:hover {
+    background: rgba(181, 71, 42, 0.15);
+    color: var(--red);
+  }
+}
+
+.dialog-close:active {
+  transform: scale(0.92);
+}
+
+/* ===== 彈窗寬度設定 ===== */
+#settings-dialog {
+  width: min(600px, calc(100vw - 28px));
+}
+
+#calendar-dialog {
+  width: min(350px, calc(100vw - 28px));
+}
+
+#delete-confirm-dialog {
+  width: min(440px, calc(100vw - 28px));
+}
+
+#startup-dialog {
+  width: min(560px, calc(100vw - 28px));
+}
+
+#ocr-dialog {
+  width: min(1180px, calc(100vw - 24px));
+  height: min(88dvh, 840px);
+}
+
+#ocr-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== 啟動視窗（記憶選擇 → 兩張卡片） ===== */
+.startup-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.startup-panel {
+  transition:
+    opacity var(--dur-ui) var(--ease-out),
+    transform var(--dur-ui) var(--ease-out);
+}
+
+.startup-panel[hidden] {
+  display: none;
+}
+
+.startup-desc {
+  color: var(--ink-soft);
+  line-height: 1.75;
+  font-size: 0.96rem;
+  margin-bottom: 18px;
+}
+
+.startup-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(181, 147, 90, 0.14);
+  border: 1px solid rgba(181, 147, 90, 0.28);
+  color: var(--gold-dark);
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.startup-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 540px) {
+  .startup-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice-card {
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 8px;
+  padding: 22px 20px;
+  border-radius: 16px;
+  border: 1.5px solid var(--glass-border);
+  background: rgba(255, 252, 244, 0.82);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(90, 70, 30, 0.08);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) ease;
+}
+
+.choice-card.primary-card {
+  background: linear-gradient(145deg, rgba(181, 147, 90, 0.18), rgba(255, 252, 244, 0.95));
+  border-color: rgba(181, 147, 90, 0.55);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .choice-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--gold);
+    box-shadow: 0 10px 26px rgba(181, 147, 90, 0.22);
+  }
+}
+
+.choice-card:active {
+  transform: scale(0.97);
+  transition-duration: 90ms;
+}
+
+.choice-card-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.choice-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.choice-card-sub {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.startup-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.startup-month-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.startup-month-inline select {
+  width: auto;
+  padding: 6px 30px 6px 12px;
+  font-size: 0.92rem;
+}
+
+/* ===== 設定表單區 ===== */
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 520px) {
+  .controls-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checkbox-group-stack {
+  justify-content: flex-start;
+  padding-bottom: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-group label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.select-wrapper {
+  position: relative;
+}
+
+.select-wrapper::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gold-dark);
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+select,
+input[type="text"],
+input[type="password"] {
+  font-family: var(--font);
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 252, 244, 0.88);
+  color: var(--ink);
+  font-size: 0.95rem;
+  appearance: none;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+select {
+  padding-right: 32px;
+}
+
+select:focus,
+input[type="text"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(181, 147, 90, 0.2);
+}
+
+/* ===== Checkbox ===== */
+.checkbox-group {
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  user-select: none;
+  font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.custom-checkbox {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(181, 147, 90, 0.45);
+  border-radius: 6px;
+  background: rgba(255, 252, 244, 0.7);
+  position: relative;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.checkbox-label input[type="checkbox"]:focus-visible + .custom-checkbox {
+  outline: 2.5px solid var(--gold-dark);
+  outline-offset: 2px;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .custom-checkbox {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+}
+
+.checkbox-label input[type="checkbox"]:checked + .custom-checkbox::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+/* ===== 設定內的進階/資料夾/AI 區塊 ===== */
+.settings-divider {
+  margin: 20px 0 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.settings-subtitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+
+.inline-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-input-row input {
+  flex: 1;
+}
+
+.folder-status-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(181, 147, 90, 0.08);
+  border: 1px solid rgba(181, 147, 90, 0.24);
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.folder-status-text strong {
+  color: var(--ink);
+}
+
+.hint-text {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* ===== 匯出區域（設定彈窗內） ===== */
+.export-section {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.export-section .btn-lg {
+  padding: 11px 18px;
+  font-size: 0.92rem;
+  flex: 1;
+  min-width: 135px;
+  justify-content: center;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+/* ===== 資料表格 ===== */
+.table-section {
+  padding-bottom: 24px;
+}
+
+.table-wrapper {
+  padding: 0 20px;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.data-table thead th {
+  padding: 11px 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  background: rgba(181, 147, 90, 0.11);
+  border-bottom: 2px solid var(--glass-border);
+}
+
+.data-table thead th:nth-child(2) {
+  text-align: left;
+}
+
+.col-date {
+  width: 68px;
+}
+
+.col-wage,
+.col-fuel,
+.col-material {
+  width: 88px;
+}
+
+.col-action {
+  width: 84px;
+}
+
+.col-hidden {
+  display: none;
+}
+
+.data-table tbody tr {
+  transition: background-color var(--dur-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .data-table tbody tr:hover {
+    background: rgba(181, 147, 90, 0.06);
+  }
+}
+
+.data-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid rgba(181, 147, 90, 0.15);
+}
+
+.data-table td {
+  padding: 8px 5px;
+  vertical-align: middle;
+}
+
+/* 日期按鈕（修正原本 width: 0% 與高度跳動 Bug） */
+.date-btn {
+  font-family: var(--font);
+  width: 100%;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 252, 244, 0.78);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.96rem;
+  font-weight: 500;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 100ms var(--ease-out),
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .date-btn:hover {
+    border-color: var(--gold);
+    background: rgba(181, 147, 90, 0.12);
+    color: var(--gold-dark);
+  }
+}
+
+.date-btn:active {
+  transform: scale(0.95);
+}
+
+.date-btn.has-value {
+  border-color: var(--gold);
+  background: rgba(181, 147, 90, 0.14);
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+
+/* 地址與金額輸入 */
+.address-input {
+  font-family: var(--font);
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid rgba(181, 147, 90, 0.28);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 252, 244, 0.65);
+  color: var(--ink);
+  font-size: 0.95rem;
+  resize: none;
+  overflow: hidden;
+  min-height: 40px;
+  line-height: 1.45;
+  vertical-align: middle;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+.amount-input {
+  font-family: var(--font);
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 6px;
+  border: 1.5px solid rgba(181, 147, 90, 0.28);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 252, 244, 0.65);
+  color: var(--ink);
+  font-size: 0.95rem;
+  text-align: center;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+
+.address-input:focus,
+.amount-input:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: rgba(255, 252, 244, 0.96);
+  box-shadow: 0 0 0 3px rgba(181, 147, 90, 0.16);
+}
+
+/* 列操作按鈕（常駐淡顯複製鈕 + 刪除鈕） */
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.copy-btn,
+.del-btn {
+  font-family: var(--font);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    transform 100ms var(--ease-out);
+}
+
+.copy-btn {
+  border: 1.5px solid rgba(181, 147, 90, 0.32);
+  color: var(--gold-dark);
+  font-size: 0.88rem;
+  opacity: 0.55;
+}
+
+.del-btn {
+  border: 1.5px solid rgba(181, 71, 42, 0.3);
+  color: var(--red);
+  font-size: 0.95rem;
+  opacity: 0.65;
+}
+
+@media (hover: none) {
+  .copy-btn,
+  .del-btn {
+    opacity: 0.85;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .data-table tbody tr:hover .copy-btn,
+  .data-table tbody tr:focus-within .copy-btn {
+    opacity: 0.85;
+  }
+
+  .copy-btn:hover {
+    background: rgba(181, 147, 90, 0.14);
+    border-color: var(--gold);
+    opacity: 1;
+  }
+
+  .del-btn:hover {
+    background: rgba(181, 71, 42, 0.12);
+    border-color: var(--red);
+    opacity: 1;
+  }
+}
+
+.copy-btn:active,
+.del-btn:active {
+  transform: scale(0.92);
+}
+
+/* 合計列 */
+.total-row {
+  border-top: 2px solid var(--gold);
+}
+
+.total-row td {
+  padding: 10px 6px;
+  font-weight: 700;
+}
+
+.total-label {
+  text-align: right;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  letter-spacing: 0.05em;
+  padding-right: 12px !important;
+}
+
+.total-wage,
+.total-fuel,
+.total-material {
+  text-align: center;
+  color: var(--gold-dark);
+  font-size: 1rem;
+  background: rgba(181, 147, 90, 0.1);
+  border-radius: var(--radius-xs);
+}
+
+/* 主畫面內頁批次別名提示條 */
+.alias-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 20px 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  border: 1px solid var(--amber-border);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.alias-banner[hidden] {
+  display: none;
+}
+
+.alias-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ===== 日曆格線 ===== */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.calendar-day-name {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.calendar-day {
+  font-family: var(--font);
+  aspect-ratio: 1;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, transform 90ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .calendar-day:hover {
+    background: rgba(181, 147, 90, 0.16);
+    border-color: var(--gold);
+    color: var(--gold-dark);
+  }
+}
+
+.calendar-day:active {
+  transform: scale(0.92);
+}
+
+.calendar-day.selected {
+  background: var(--gold);
+  border-color: var(--gold-dark);
+  color: #fff;
+  font-weight: 700;
+}
+
+.calendar-day.empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.calendar-quick-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.calendar-clear-btn {
+  margin-top: 14px;
+  font-family: var(--font);
+  width: 100%;
+  padding: 9px;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+.calendar-clear-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(181, 71, 42, 0.06);
+}
+
+/* ===== 確認刪除 ===== */
+.confirm-desc {
+  color: var(--ink-soft);
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin-bottom: 18px;
+}
+
+.confirm-preview-chip {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs);
+  background: rgba(181, 147, 90, 0.1);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ===== OCR 辨識讀取中 & 左草稿右原圖對照視窗 ===== */
+.ocr-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.ocr-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ocr-header-left h2 {
+  font-size: 1.12rem;
+  font-weight: 700;
+}
+
+.ocr-month-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.ocr-month-badge select {
+  width: auto;
+  padding: 5px 28px 5px 10px;
+  font-size: 0.88rem;
+}
+
+.ocr-status-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(181, 147, 90, 0.14);
+  color: var(--gold-dark);
+}
+
+.ocr-status-pill.warn {
+  background: var(--amber-soft);
+  color: #8a5600;
+}
+
+.ocr-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ocr-loading-view,
+.ocr-apikey-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 24px;
+  text-align: center;
+  gap: 14px;
+}
+
+.ocr-loading-view[hidden],
+.ocr-apikey-view[hidden],
+.ocr-split-view[hidden] {
+  display: none;
+}
+
+.ocr-spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3.5px solid rgba(181, 147, 90, 0.22);
+  border-top-color: var(--gold-dark);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ocr-spinner {
+    animation: spin 0.9s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ocr-apikey-card {
+  width: min(460px, 100%);
+  padding: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 252, 244, 0.92);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ocr-split-view {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+}
+
+@media (max-width: 860px) {
+  .ocr-split-view {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 0.75fr;
+  }
+}
+
+/* 左邊草稿編輯區 */
+.ocr-draft-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--glass-border);
+}
+
+@media (max-width: 860px) {
+  .ocr-draft-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
+  }
+}
+
+.ocr-draft-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.ocr-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-xs);
+  background: rgba(181, 147, 90, 0.1);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+
+.ocr-draft-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.ocr-draft-table th {
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  background: rgba(181, 147, 90, 0.1);
+  border-bottom: 1.5px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.ocr-draft-table th:nth-child(2) {
+  text-align: left;
+}
+
+.ocr-draft-table td {
+  padding: 7px 4px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(181, 147, 90, 0.14);
+}
+
+.ocr-draft-row.is-active {
+  background: rgba(181, 147, 90, 0.08);
+}
+
+.ocr-draft-row.is-uncertain {
+  background: var(--amber-soft);
+}
+
+.ocr-raw-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.ocr-uncertain-note {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: #8a5600;
+  font-weight: 500;
+}
+
+.ocr-tiny-link {
+  background: none;
+  border: none;
+  color: var(--gold-dark);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: inherit;
+  padding: 0;
+}
+
+.ocr-date-input {
+  width: 54px !important;
+  text-align: center;
+  padding: 8px 4px !important;
+  font-weight: 700;
+  color: var(--gold-dark) !important;
+}
+
+/* 右邊原圖對照區 */
+.ocr-photo-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(237, 232, 220, 0.55);
+}
+
+.ocr-photo-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.ocr-photo-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ocr-photo-tab {
+  font-family: var(--font);
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--glass-border);
+  background: rgba(255, 252, 244, 0.8);
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease, transform 90ms ease;
+}
+
+.ocr-photo-tab.active {
+  background: var(--gold-dark);
+  border-color: var(--gold-dark);
+  color: #fff;
+  font-weight: 600;
+}
+
+.ocr-photo-tab:active {
+  transform: scale(0.95);
+}
+
+.ocr-photo-viewport {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  cursor: zoom-in;
+}
+
+.ocr-photo-viewport.zoomed {
+  cursor: zoom-out;
+  display: block;
+}
+
+.ocr-photo-viewport img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-xs);
+  box-shadow: 0 6px 24px rgba(44, 36, 22, 0.16);
+  transition: transform var(--dur-ui) var(--ease-out);
+}
+
+.ocr-photo-viewport.zoomed img {
+  max-width: none;
+  width: 175%;
+}
+
+.ocr-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(255, 252, 244, 0.94);
+  flex-wrap: wrap;
+}
+
+.ocr-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ===== 預覽 ===== */
+.preview-section {
+  padding-bottom: 24px;
+}
+
+.preview-wrapper {
+  padding: 0 22px;
+  overflow-x: auto;
+}
+
+.preview-doc {
+  background: #fff;
+  border: 1px solid rgba(181, 147, 90, 0.25);
+  border-radius: var(--radius-sm);
+  min-height: 200px;
+  overflow: hidden;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font);
+  font-size: 0.9rem;
+}
+
+.preview-table .header-row th {
+  padding: 14px 10px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.08rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.preview-table .header-row th:nth-child(2) {
+  text-align: left;
+}
+
+.preview-table .data-row td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(181, 147, 90, 0.2);
+  color: var(--ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.preview-table .data-row td:first-child {
+  text-align: center;
+  font-weight: 600;
+  color: var(--gold-dark);
+  width: 50px;
+}
+
+.preview-table .data-row td:nth-child(n+3) {
+  text-align: center;
+}
+
+.preview-table .empty-row td {
+  height: 24px;
+  border-bottom: 1px solid rgba(181, 147, 90, 0.1);
+}
+
+.preview-table .sum-row td {
+  padding: 10px;
+  font-weight: 700;
+  border-top: 2px solid var(--gold);
+  background: rgba(181, 147, 90, 0.06);
+  text-align: center;
+  color: var(--gold-dark);
+}
+
+.preview-table .summary-row td {
+  padding: 14px 10px 6px;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+/* ===== 按鈕系統（Pointer-down 即時回饋） ===== */
+.btn {
+  font-family: var(--font);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-xs);
+  transition:
+    transform 100ms var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 0.88rem;
+  border: 1.5px solid var(--glass-border);
+  background: rgba(255, 252, 244, 0.78);
+  color: var(--ink-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm:hover:not(:disabled) {
+    border-color: var(--gold);
+    color: var(--gold-dark);
+    background: rgba(181, 147, 90, 0.12);
+  }
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 0.98rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold) 55%, var(--gold-light) 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(181, 147, 90, 0.35);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 7px 24px rgba(181, 147, 90, 0.5);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #5a3a1a 0%, #8a5c28 55%, #b07840 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(90, 58, 26, 0.3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-accent:hover:not(:disabled) {
+    box-shadow: 0 7px 24px rgba(90, 58, 26, 0.45);
+    transform: translateY(-1px);
+  }
+}
+
+.btn-secondary {
+  background: rgba(181, 147, 90, 0.14);
+  color: var(--ink);
+  border: 1.5px solid var(--glass-border);
+  padding: 7px 14px;
+  font-size: 0.88rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(181, 147, 90, 0.24);
+    border-color: var(--gold);
+    color: var(--gold-dark);
+  }
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #7f2f1c 0%, var(--red) 60%, #c65a3f 100%);
+  color: #fff;
+  border: 1.5px solid rgba(181, 71, 42, 0.35);
+  box-shadow: 0 4px 16px rgba(181, 71, 42, 0.25);
+}
+
+/* ===== Toast 通知（支援可中斷 Transition + 復原鈕） ===== */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translate3d(-50%, 24px, 0) scale(0.97);
+  background: rgba(44, 36, 22, 0.94);
+  backdrop-filter: blur(20px);
+  color: #f5f0e8;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-family: var(--font);
+  font-size: 0.92rem;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform 240ms var(--ease-out),
+    opacity 200ms ease;
+}
+
+.toast.show {
+  transform: translate3d(-50%, 0, 0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.toast-action-btn {
+  font-family: var(--font);
+  background: var(--gold-light);
+  color: var(--ink);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ===== 建議下拉選單（Top-layer popover + 鍵盤與單筆刪除支援） ===== */
+.suggestions-dropdown {
+  position: fixed;
+  margin: 0;
+  inset: auto;
+  z-index: 9998;
+  background: rgba(255, 252, 244, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--radius-xs);
+  box-shadow: 0 12px 32px rgba(90, 70, 30, 0.22);
+  max-height: 240px;
+  overflow-y: auto;
+  display: none;
+  padding: 4px;
+}
+
+.suggestions-dropdown.active,
+.suggestions-dropdown:is(:popover-open, .\:popover-open) {
+  display: block;
+}
+
+.suggestions-header {
+  padding: 4px 10px 6px;
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+  border-bottom: 1px solid rgba(181, 147, 90, 0.14);
+  margin-bottom: 2px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  font-family: var(--font);
+  font-size: 0.92rem;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.suggestion-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.suggestion-del {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.suggestion-del:hover {
+  background: rgba(181, 71, 42, 0.14);
+  color: var(--red);
+  opacity: 1;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background: rgba(181, 147, 90, 0.16);
+  color: var(--gold-dark);
+}
+
+/* ===== 浮動匯出按鈕 ===== */
+.export-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 40;
+}
+
+.export-fab-btn {
+  font-family: var(--font);
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 24px;
+  border: none;
+  background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold) 50%, var(--gold-light) 100%);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 24px rgba(181, 147, 90, 0.45);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .export-fab-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 32px rgba(181, 147, 90, 0.58);
+  }
+}
+
+.export-fab-btn:active {
+  transform: scale(0.96);
+}
+
+.export-fab-menu {
+  position: absolute;
+  bottom: 58px;
+  right: 0;
+  background: rgba(255, 252, 244, 0.98);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 40px rgba(90, 70, 30, 0.22);
+  overflow: hidden;
+  min-width: 185px;
+  transform-origin: bottom right;
+  opacity: 0;
+  transform: scale(0.94) translateY(6px);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+
+.export-fab-menu.active {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+.export-fab-menu-item {
+  font-family: var(--font);
+  display: block;
+  width: 100%;
+  padding: 13px 20px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.export-fab-menu-item:hover {
+  background: rgba(181, 147, 90, 0.14);
+  color: var(--gold-dark);
+}
+
+.export-fab-menu-item:not(:last-child) {
+  border-bottom: 1px solid rgba(181, 147, 90, 0.12);
+}
+
+/* ===== 拖曳圖片提示遮罩 ===== */
+.drop-overlay {
+  position: fixed;
+  inset: 16px;
+  z-index: 9990;
+  border-radius: var(--radius);
+  border: 3px dashed var(--gold-dark);
+  background: rgba(255, 252, 244, 0.9);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.drop-overlay.active {
+  opacity: 1;
+}
+
+/* ===== 響應式 ===== */
+@media (max-width: 600px) {
+  .container {
+    padding: 20px 12px 84px;
+  }
+
+  .table-wrapper,
+  .preview-wrapper {
+    padding: 0 10px;
+  }
+
+  .section-title {
+    padding: 16px 14px 0;
+  }
+
+  .settings-fab {
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .col-wage,
+  .col-fuel,
+  .col-material {
+    width: 66px;
+  }
+
+  .export-fab {
+    bottom: 16px;
+    right: 16px;
+  }
+}
+
+/* ===== 無障礙偏好：動態降級、透明降級、高對比 ===== */
+@media (prefers-reduced-motion: reduce) {
+  dialog,
+  dialog::backdrop {
+    transition-duration: 120ms;
+  }
+
+  .startup-panel,
+  .export-fab-menu,
+  .toast {
+    transition-duration: 120ms;
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-card,
+  dialog,
+  .settings-fab,
+  .export-fab-menu,
+  .suggestions-dropdown {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #fffcf4;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --glass-border: rgba(90, 70, 30, 0.65);
+    --ink-muted: #4a4030;
+  }
+}
+
+/* ===== 列印樣式（匯出 PDF，修正桌面版 max-height 截斷問題） ===== */
+@page {
+  margin: 8mm;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .bg-orbs,
+  .settings-fab,
+  .table-section,
+  .page-header,
+  .export-fab,
+  .toast,
+  .drop-overlay,
+  dialog {
+    display: none !important;
+  }
+
+  .container {
+    padding: 0;
+    max-width: none;
+  }
+
+  .main-layout {
+    display: block !important;
+  }
+
+  .main-layout .preview-section {
+    position: static !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: none !important;
+    display: block !important;
+  }
+
+  .main-layout .preview-section .preview-wrapper {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .section-title {
+    display: none !important;
+  }
+
+  .preview-doc {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .preview-table th {
+    background-color: #f8f5f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .preview-table .summary-row td {
+    color: #5a4e3a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+    </style>
+  </head>
+  <body>
+    <div class="bg-orbs" aria-hidden="true">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <div class="drop-overlay" id="drop-overlay">放開滑鼠即可辨識手寫筆記照片</div>
+
+    <!-- 右上角設定按鈕 -->
+    <button
+      id="settings-fab"
+      class="settings-fab"
+      type="button"
+      aria-label="開啟基本設定"
+      title="基本設定"
+    >
+      <svg
+        class="settings-fab-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="3"></circle>
+        <path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+        ></path>
+      </svg>
+    </button>
+
+    <!-- 隱藏的多張照片選檔器與舊報表/備份選檔器 -->
+    <input
+      id="photo-file-input"
+      class="file-input-hidden"
+      type="file"
+      accept="image/*"
+      multiple
+    />
+    <input
+      id="import-file-input"
+      class="file-input-hidden"
+      type="file"
+      accept=".ods,.xlsx,.xls,.csv"
+    />
+    <input
+      id="backup-json-input"
+      class="file-input-hidden"
+      type="file"
+      accept=".json"
+    />
+
+    <!-- 啟動畫面（原生 dialog） -->
+    <dialog id="startup-dialog" closedby="none" aria-labelledby="startup-title">
+      <div class="dialog-inner startup-stage">
+        <!-- 步驟 1：有記憶時詢問讀取記憶或重新開始 -->
+        <div class="startup-panel" id="startup-memory-step">
+          <div class="dialog-header">
+            <h2 id="startup-title">找到上次的記憶資料</h2>
+          </div>
+          <div class="startup-summary-pill" id="startup-summary-pill">載入中...</div>
+          <p class="startup-desc">
+            選擇「讀取記憶」會接著上次進度繼續編輯；選擇「重新開始」可建立新的月份報表（已學到的常用地址、金額與別名對照都會保留）。
+          </p>
+          <div class="startup-cards">
+            <button id="continue-last-btn" class="choice-card primary-card" type="button" autofocus>
+              <span class="choice-card-icon">📂</span>
+              <span class="choice-card-title">讀取記憶</span>
+              <span class="choice-card-sub">繼續編輯上次的報表內容</span>
+            </button>
+            <button id="new-document-btn" class="choice-card" type="button">
+              <span class="choice-card-icon">✨</span>
+              <span class="choice-card-title">重新開始</span>
+              <span class="choice-card-sub">開啟空白報表或拍照自動建表</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 步驟 2：重新開始後的兩張卡片（直接開始 / 照片匯入） -->
+        <div class="startup-panel" id="startup-start-step" hidden>
+          <div class="dialog-header">
+            <h2 id="startup-start-title">要怎麼開始這份報表？</h2>
+          </div>
+          <div class="startup-top-row">
+            <button id="back-to-choice-btn" class="btn btn-sm" type="button">← 返回</button>
+            <label class="startup-month-inline" for="startup-month-select">
+              報表月份
+              <span class="select-wrapper">
+                <select id="startup-month-select"></select>
+              </span>
+            </label>
+          </div>
+          <div class="startup-cards">
+            <button id="direct-start-btn" class="choice-card" type="button">
+              <span class="choice-card-icon">📝</span>
+              <span class="choice-card-title">直接開始</span>
+              <span class="choice-card-sub">打開空白表格直接手動輸入</span>
+            </button>
+            <button id="photo-start-btn" class="choice-card primary-card" type="button">
+              <span class="choice-card-icon">📷</span>
+              <span class="choice-card-title">照片匯入</span>
+              <span class="choice-card-sub">選擇多張筆記照片，自動讀取填表</span>
+            </button>
+          </div>
+          <p class="hint-text" style="margin-top: 12px;">
+            選擇照片後會自動依筆記頁首判斷月份並過濾跨月日期，進入畫面後仍可自由修改。
+          </p>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 基本設定視窗（原生 dialog） -->
+    <dialog id="settings-dialog" closedby="any" aria-labelledby="settings-title">
+      <div class="dialog-inner">
+        <div class="dialog-header">
+          <h2 id="settings-title">基本設定</h2>
+          <button class="dialog-close" id="settings-close" type="button" aria-label="關閉設定">✕</button>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control-group">
+            <label for="month-select">月份</label>
+            <div class="select-wrapper">
+              <select id="month-select"></select>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label for="filename-input">檔案名稱（留空依月份自動命名）</label>
+            <input type="text" id="filename-input" placeholder="例如：十月份薪資油資報表" value="" />
+          </div>
+
+          <div class="control-group">
+            <label for="signature-input">報表底部簽名</label>
+            <input type="text" id="signature-input" value="柏盛" />
+          </div>
+
+          <div class="control-group"></div>
+
+          <div class="control-group checkbox-group checkbox-group-stack">
+            <label class="checkbox-label" for="show-wage-checkbox">
+              <input type="checkbox" id="show-wage-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示工資欄位
+            </label>
+            <label class="checkbox-label" for="show-fuel-checkbox">
+              <input type="checkbox" id="show-fuel-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示油資欄位
+            </label>
+            <label class="checkbox-label" for="show-material-checkbox">
+              <input type="checkbox" id="show-material-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示材料欄位
+            </label>
+            <label class="checkbox-label" for="sort-date-checkbox">
+              <input type="checkbox" id="sort-date-checkbox" />
+              <span class="custom-checkbox"></span>
+              匯出與預覽照日期排序
+            </label>
+          </div>
+
+          <div class="control-group checkbox-group checkbox-group-stack">
+            <label class="checkbox-label" for="show-grand-total-checkbox">
+              <input type="checkbox" id="show-grand-total-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示共計總額
+            </label>
+            <label class="checkbox-label" for="show-wage-total-checkbox">
+              <input type="checkbox" id="show-wage-total-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示工資總額
+            </label>
+            <label class="checkbox-label" for="show-fuel-total-checkbox">
+              <input type="checkbox" id="show-fuel-total-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示油資總額
+            </label>
+            <label class="checkbox-label" for="show-material-total-checkbox">
+              <input type="checkbox" id="show-material-total-checkbox" checked />
+              <span class="custom-checkbox"></span>
+              顯示材料總額
+            </label>
+          </div>
+        </div>
+
+        <!-- 本機記憶資料夾設定 -->
+        <div class="settings-divider">
+          <div class="settings-subtitle">本機記憶資料夾（自動備份）</div>
+          <div class="folder-status-box">
+            <div class="folder-status-text" id="folder-status-text">尚未綁定本機資料夾</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button id="bind-folder-btn" class="btn btn-secondary" type="button">📁 選擇／綁定資料夾</button>
+              <button id="restore-folder-btn" class="btn btn-sm" type="button">從資料夾還原</button>
+            </div>
+          </div>
+          <p class="hint-text" id="folder-hint-text">
+            綁定後（建議在桌面或 OneDrive 建一個「錢錢記憶」資料夾），匯出 PDF／ODS 時會自動把記憶檔（錢錢記憶備份.json）更新進該資料夾；編輯時若已取得授權也會自動同步。
+          </p>
+        </div>
+
+        <!-- Gemini AI 手寫辨識設定 -->
+        <div class="settings-divider">
+          <div class="settings-subtitle">手寫照片辨識（Google Gemini 免費版）</div>
+          <div class="controls-grid">
+            <div class="control-group" style="grid-column: 1 / -1;">
+              <label for="gemini-key-input">Gemini API 金鑰（只儲存在這台電腦本機，不會上傳網路）</label>
+              <div class="inline-input-row">
+                <input type="password" id="gemini-key-input" placeholder="貼上 AQ. 或 AIza... 金鑰" autocomplete="off" />
+                <button id="toggle-key-vis-btn" class="btn btn-sm" type="button">顯示</button>
+                <button id="test-gemini-btn" class="btn btn-secondary" type="button">🧪 測試連線</button>
+              </div>
+              <p class="hint-text" id="gemini-test-status"></p>
+            </div>
+
+            <div class="control-group">
+              <label for="gemini-model-select">辨識模型（免費層）</label>
+              <div class="select-wrapper">
+                <select id="gemini-model-select">
+                  <option value="gemini-4-hydrogen">gemini-4-hydrogen（預設推薦）</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash（高速免費）</option>
+                  <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite（輕量高配額）</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="control-group checkbox-group">
+              <label class="checkbox-label" for="gemini-fallback-checkbox">
+                <input type="checkbox" id="gemini-fallback-checkbox" checked />
+                <span class="custom-checkbox"></span>
+                額度滿時自動切換備援模型
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="export-section">
+          <button id="import-file-btn" class="btn btn-secondary btn-lg" type="button">匯入 ODS / Excel</button>
+          <button id="export-ods-btn" class="btn btn-primary btn-lg" type="button">匯出 ODS 檔</button>
+          <button id="export-png-btn" class="btn btn-accent btn-lg" type="button">匯出 PNG 檔</button>
+          <button id="export-pdf-btn" class="btn btn-accent btn-lg" type="button">匯出 PDF 檔</button>
+          <div style="width:100%; display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+            <button id="export-json-btn" class="btn btn-sm" type="button" style="flex:1;">匯出記憶檔 (.json)</button>
+            <button id="import-json-btn" class="btn btn-sm" type="button" style="flex:1;">匯入記憶檔 (.json)</button>
+            <button id="clear-history-btn" class="btn btn-sm" type="button" style="flex:1; color: var(--red);">清除記憶庫與別名</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 日曆選擇器（原生 dialog） -->
+    <dialog id="calendar-dialog" closedby="any" aria-labelledby="calendar-month-title">
+      <div class="dialog-inner">
+        <div class="dialog-header">
+          <h2 id="calendar-month-title"></h2>
+          <button class="dialog-close" id="calendar-close" type="button" aria-label="關閉日曆">✕</button>
+        </div>
+        <div class="calendar-quick-row">
+          <button class="btn btn-sm" id="cal-today-btn" type="button">今天</button>
+          <button class="btn btn-sm" id="cal-yesterday-btn" type="button">昨天</button>
+          <button class="btn btn-sm" id="cal-prevrow-btn" type="button">同上列</button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+    </dialog>
+
+    <!-- 刪除確認視窗（原生 dialog） -->
+    <dialog id="delete-confirm-dialog" closedby="any" aria-labelledby="delete-confirm-title" aria-describedby="delete-confirm-desc">
+      <div class="dialog-inner">
+        <div class="dialog-header">
+          <h2 id="delete-confirm-title">確認刪除</h2>
+          <button class="dialog-close" id="delete-confirm-close" type="button" aria-label="關閉刪除確認">✕</button>
+        </div>
+        <p class="confirm-desc" id="delete-confirm-desc">
+          確定要刪除此列資料嗎？
+          <span class="confirm-preview-chip" id="delete-confirm-preview"></span>
+        </p>
+        <div class="confirm-actions">
+          <button class="btn btn-sm" id="delete-confirm-cancel-btn" type="button" autofocus>取消</button>
+          <button class="btn btn-sm btn-danger" id="delete-confirm-ok-btn" type="button">刪除</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 拍照 OCR 讀取 & 左草稿右原圖對照視窗（原生 dialog） -->
+    <dialog id="ocr-dialog" closedby="closerequest" aria-labelledby="ocr-dialog-title">
+      <div class="ocr-dialog-header">
+        <div class="ocr-header-left">
+          <h2 id="ocr-dialog-title">手寫筆記辨識</h2>
+          <label class="ocr-month-badge" id="ocr-month-wrap" hidden>
+            報表月份
+            <span class="select-wrapper">
+              <select id="ocr-month-select"></select>
+            </span>
+          </label>
+          <span class="ocr-status-pill" id="ocr-count-pill" hidden></span>
+          <span class="ocr-status-pill warn" id="ocr-uncertain-pill" hidden></span>
+        </div>
+        <button class="dialog-close" id="ocr-close-btn" type="button" aria-label="關閉辨識視窗">✕</button>
+      </div>
+
+      <div class="ocr-body">
+        <!-- 狀態 A：首次缺 API 金鑰 -->
+        <div class="ocr-apikey-view" id="ocr-apikey-view" hidden>
+          <div class="ocr-apikey-card">
+            <h3 style="font-size:1.05rem;">首次使用拍照辨識，請貼上 Gemini API 金鑰</h3>
+            <p class="hint-text" style="margin-top:0;">
+              只要設定這一次，金鑰會儲存在這台電腦裡，之後點選照片就會直接辨識。
+            </p>
+            <input type="password" id="ocr-inline-key-input" placeholder="貼上 AQ. 或 AIza... 金鑰" autocomplete="off" />
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+              <button id="ocr-inline-cancel-btn" class="btn btn-sm" type="button">取消</button>
+              <button id="ocr-inline-save-btn" class="btn btn-primary btn-sm" type="button">儲存並開始辨識</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 狀態 B：Gemini 讀取中 -->
+        <div class="ocr-loading-view" id="ocr-loading-view" hidden>
+          <div class="ocr-spinner" aria-hidden="true"></div>
+          <div style="font-size:1.08rem; font-weight:700;" id="ocr-loading-title">正在讀取手寫筆記...</div>
+          <div style="font-size:0.9rem; color:var(--ink-soft);" id="ocr-loading-sub">請稍候幾秒鐘</div>
+          <button id="ocr-abort-btn" class="btn btn-sm" type="button" style="margin-top:8px;">取消讀取</button>
+        </div>
+
+        <!-- 狀態 C：左邊草稿 / 右邊原圖 對照確認 -->
+        <div class="ocr-split-view" id="ocr-split-view" hidden>
+          <!-- 左邊：可編輯草稿 -->
+          <div class="ocr-draft-pane">
+            <div class="ocr-draft-scroll">
+              <div class="ocr-filter-note" id="ocr-filter-note" hidden>
+                <span id="ocr-filter-note-text"></span>
+                <button class="ocr-tiny-link" id="ocr-toggle-crossmonth-btn" type="button"></button>
+              </div>
+              <div class="alias-banner" id="ocr-alias-banner" style="margin:0 0 10px;" hidden>
+                <span id="ocr-alias-banner-text"></span>
+                <div class="alias-banner-actions">
+                  <button class="btn btn-primary btn-sm" id="ocr-alias-apply-btn" type="button"></button>
+                  <button class="btn btn-sm" id="ocr-alias-dismiss-btn" type="button">略過</button>
+                </div>
+              </div>
+              <table class="ocr-draft-table">
+                <thead>
+                  <tr>
+                    <th style="width:58px;">日期</th>
+                    <th>地址 / 備註</th>
+                    <th style="width:76px;">工資</th>
+                    <th style="width:70px;">油資</th>
+                    <th style="width:70px;">材料</th>
+                    <th style="width:40px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="ocr-draft-body"></tbody>
+              </table>
+            </div>
+            <div class="ocr-footer">
+              <span class="hint-text" style="margin-top:0;">點選任一列可切換右側對應照片；文字進主表後仍可隨時修改。</span>
+              <div class="ocr-footer-actions">
+                <button id="ocr-cancel-btn" class="btn btn-secondary" type="button">取消</button>
+                <button id="ocr-apply-btn" class="btn btn-primary" type="button">加入表格</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右邊：原圖對照區 -->
+          <div class="ocr-photo-pane">
+            <div class="ocr-photo-toolbar">
+              <div class="ocr-photo-tabs" id="ocr-photo-tabs"></div>
+              <button class="btn btn-sm" id="ocr-zoom-btn" type="button">🔍 放大看字</button>
+            </div>
+            <div class="ocr-photo-viewport" id="ocr-photo-viewport" title="點擊切換放大檢視">
+              <img id="ocr-photo-img" alt="手寫筆記原圖" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <main class="container">
+      <header class="page-header">
+        <h1>\(￣︶￣*\)</h1>
+      </header>
+
+      <div class="main-layout">
+        <!-- 資料輸入表格 -->
+        <section class="glass-card table-section">
+          <div class="section-title">
+            <h2>資料輸入</h2>
+            <div class="section-actions">
+              <button id="photo-import-btn" class="btn btn-secondary btn-sm" type="button">
+                📷 照片匯入
+              </button>
+              <button id="add-row-btn" class="btn btn-secondary btn-sm" type="button">
+                ＋ 新增一列
+              </button>
+            </div>
+          </div>
+
+          <div class="alias-banner" id="main-alias-banner" hidden>
+            <span id="main-alias-banner-text"></span>
+            <div class="alias-banner-actions">
+              <button class="btn btn-primary btn-sm" id="main-alias-apply-btn" type="button"></button>
+              <button class="btn btn-sm" id="main-alias-dismiss-btn" type="button">略過</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="data-table" id="data-table">
+              <thead>
+                <tr>
+                  <th class="col-date">日期</th>
+                  <th class="col-address">地址</th>
+                  <th class="col-wage" data-col="wage">工資</th>
+                  <th class="col-fuel" data-col="fuel">油資</th>
+                  <th class="col-material" data-col="material">材料</th>
+                  <th class="col-action">操作</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td colspan="2" class="total-label">合計</td>
+                  <td class="total-wage" id="total-wage" data-col="wage"></td>
+                  <td class="total-fuel" id="total-fuel" data-col="fuel"></td>
+                  <td class="total-material" id="total-material" data-col="material"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        <!-- 預覽區域 -->
+        <section class="glass-card preview-section">
+          <div class="section-title">
+            <h2>預覽</h2>
+          </div>
+          <div class="preview-wrapper">
+            <div class="preview-doc" id="preview-doc"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- 浮動匯出按鈕 -->
+    <div class="export-fab" id="export-fab">
+      <div class="export-fab-menu" id="export-fab-menu">
+        <button class="export-fab-menu-item" data-export="ods" type="button">匯出 ODS 檔</button>
+        <button class="export-fab-menu-item" data-export="png" type="button">匯出 PNG 檔</button>
+        <button class="export-fab-menu-item" data-export="pdf" type="button">匯出 PDF 檔</button>
+      </div>
+      <button class="export-fab-btn" id="export-fab-btn" type="button">📤 匯出</button>
+    </div>
+
+    <!-- 全域建議下拉（Top-Layer Popover 支援） -->
+    <div class="suggestions-dropdown" id="global-suggestions" popover="manual"></div>
+
+    <!-- 全域 Toast -->
+    <div class="toast" id="global-toast" role="status" aria-live="polite"></div>
+
+    <script>
+"use strict";
+
+/* ============================================================
+   常數與儲存鍵值（完全不預設任何範例地址或別名）
+   ============================================================ */
+const STORAGE_KEY = "qianqian-report-memory-v2";
+const ADDR_HISTORY_KEY = "qianqian-address-history";
+const AMOUNT_HISTORY_KEY = "qianqian-amount-history";
+const ALIAS_MAP_KEY = "qianqian-alias-map-v1";
+const GEMINI_KEY_STORAGE = "qianqian-gemini-api-key";
+const GEMINI_MODEL_STORAGE = "qianqian-gemini-model";
+const GEMINI_FALLBACK_STORAGE = "qianqian-gemini-fallback";
+const FOLDER_NAME_STORAGE = "qianqian-folder-name";
+
+const FS_DB_NAME = "qianqian-fs-db";
+const FS_STORE_NAME = "handles";
+const FS_DIR_KEY = "backupDir";
+const BACKUP_JSON_FILENAME = "錢錢記憶備份.json";
+
+const MONTH_OPTIONS = [
+  ["一", 1, "一月份"],
+  ["二", 2, "二月份"],
+  ["三", 3, "三月份"],
+  ["四", 4, "四月份"],
+  ["五", 5, "五月份"],
+  ["六", 6, "六月份"],
+  ["七", 7, "七月份"],
+  ["八", 8, "八月份"],
+  ["九", 9, "九月份"],
+  ["十", 10, "十月份"],
+  ["十一", 11, "十一月份"],
+  ["十二", 12, "十二月份"],
+];
+
+const MONTH_MAP = Object.fromEntries(MONTH_OPTIONS.map(([k, n]) => [k, n]));
+const MONTH_KEY_BY_NUM = Object.fromEntries(MONTH_OPTIONS.map(([k, n]) => [String(n), k]));
+
+const DEFAULT_SETTINGS = {
+  filename: "",
+  signature: "柏盛",
+  showWage: true,
+  showFuel: true,
+  showMaterial: true,
+  sortByDate: false,
+  showGrandTotal: true,
+  showWageTotal: true,
+  showFuelTotal: true,
+  showMaterialTotal: true,
+};
+
+const state = {
+  rows: [],
+  nextId: 1,
+  targetRowId: null,
+  pendingDeleteRowId: null,
+  lastDeleted: null,
+  photoImportReplaceMode: false,
+  pendingOcrFiles: [],
+};
+
+const ocrState = {
+  photos: [], // { name, base64, mimeType, previewUrl }
+  allRows: [], // { uid, photoIndex, monthNum, date, rawAddress, address, wage, fuel, material, uncertain, uncertainReason }
+  targetMonthNum: new Date().getMonth() + 1,
+  showCrossMonth: false,
+  activePhotoIndex: 0,
+  abortController: null,
+  pendingBatchAlias: null,
+};
+
+let _mainBatchAlias = null;
+let _toastTimer = null;
+let _folderSyncTimer = null;
+
+/* ============================================================
+   Top-Layer Dialog 相容退出與 Light-Dismiss（依 modern-web-guidance）
+   ============================================================ */
+let _supportsDisplayTransition;
+function canTransitionDisplay() {
+  if (_supportsDisplayTransition !== undefined) return _supportsDisplayTransition;
+  if (!window.CSS?.supports?.("transition-behavior", "allow-discrete") || !document.body) {
+    _supportsDisplayTransition = false;
+    return false;
+  }
+  const probe = document.createElement("div");
+  probe.style.cssText = "transition: display 1s allow-discrete !important; display: block;";
+  document.body.appendChild(probe);
+  getComputedStyle(probe).display;
+  probe.style.display = "none";
+  _supportsDisplayTransition = getComputedStyle(probe).display === "block";
+  probe.remove();
+  return _supportsDisplayTransition;
+}
+
+function supportsTopLayerExit() {
+  return window.CSS?.supports?.("overlay", "auto") && canTransitionDisplay();
+}
+
+function openModal(dialog) {
+  if (!dialog) return;
+  dialog.removeAttribute("data-closing");
+  if (!dialog.open) dialog.showModal();
+}
+
+async function closeModal(dialog) {
+  if (!dialog || !dialog.open) return;
+  if (!supportsTopLayerExit()) {
+    dialog.setAttribute("data-closing", "");
+    const animations = dialog.getAnimations({ subtree: true });
+    if (animations.length > 0) {
+      await Promise.race([
+        Promise.allSettled(animations.map((a) => a.finished)),
+        new Promise((r) => setTimeout(r, 400)),
+      ]);
+    }
+    if (!dialog.hasAttribute("data-closing")) return;
+    dialog.removeAttribute("data-closing");
+  }
+  dialog.close();
+}
+
+function setupDialogDismissFallbacks() {
+  document.querySelectorAll("dialog").forEach((dialog) => {
+    dialog.addEventListener("cancel", (event) => {
+      if (dialog.id === "startup-dialog") {
+        event.preventDefault();
+        return;
+      }
+      if (dialog.id === "ocr-dialog") {
+        event.preventDefault();
+        closeOcrDialog();
+        return;
+      }
+      if (!supportsTopLayerExit()) {
+        event.preventDefault();
+        closeModal(dialog);
+      }
+    });
+  });
+
+  if (!("closedBy" in HTMLDialogElement.prototype)) {
+    const isOutside = (e, dialog) => {
+      const r = dialog.getBoundingClientRect();
+      return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    };
+    document.querySelectorAll('dialog[closedby="any"]').forEach((dialog) => {
+      let pressedOutside = false;
+      dialog.addEventListener("pointerdown", (e) => {
+        pressedOutside = isOutside(e, dialog);
+      });
+      dialog.addEventListener("pointerup", (e) => {
+        if (pressedOutside && isOutside(e, dialog)) closeModal(dialog);
+      });
+    });
+  }
+}
+
+/* ============================================================
+   初始化與事件綁定
+   ============================================================ */
+function openStartupStepDialog() {
+  if (hasSavedMemory() || Boolean(localStorage.getItem(FOLDER_NAME_STORAGE))) {
+    showStartupMemoryStep();
+  } else {
+    showStartupStartStep({ allowBack: false });
+  }
+  openModal(document.getElementById("startup-dialog"));
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  populateMonthSelects();
+  setupDialogDismissFallbacks();
+  restoreGeminiSettingsDom();
+  updateFolderStatusUI();
+  bindEvents();
+  openStartupStepDialog();
+});
+
+function populateMonthSelects() {
+  const ids = ["month-select", "startup-month-select", "ocr-month-select"];
+  ids.forEach((id) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = MONTH_OPTIONS.map(
+      ([val, , label]) => `<option value="${val}">${label}</option>`,
+    ).join("");
+  });
+  setDefaultMonthToCurrent();
+}
+
+function setDefaultMonthToCurrent() {
+  const currentMonthNum = new Date().getMonth() + 1;
+  const monthKey = MONTH_KEY_BY_NUM[String(currentMonthNum)] || "一";
+  ["month-select", "startup-month-select"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = monthKey;
+  });
+}
+
+function bindEvents() {
+  const monthSel = document.getElementById("month-select");
+  const startupMonthSel = document.getElementById("startup-month-select");
+
+  monthSel.addEventListener("change", () => {
+    startupMonthSel.value = monthSel.value;
+    updatePreview();
+    persistState();
+  });
+
+  startupMonthSel.addEventListener("change", () => {
+    monthSel.value = startupMonthSel.value;
+  });
+
+  document.getElementById("filename-input").addEventListener("input", persistState);
+  document.getElementById("signature-input").addEventListener("input", () => {
+    updatePreview();
+    persistState();
+  });
+
+  document.getElementById("add-row-btn").addEventListener("click", () => addRow());
+  document.getElementById("photo-import-btn").addEventListener("click", () => {
+    state.photoImportReplaceMode = false;
+    document.getElementById("photo-file-input").click();
+  });
+
+  document.getElementById("photo-file-input").addEventListener("change", handlePhotoSelection);
+
+  // 啟動畫面兩步互動
+  document.getElementById("continue-last-btn").addEventListener("click", continueLastDocument);
+  document.getElementById("new-document-btn").addEventListener("click", () => {
+    showStartupStartStep({ allowBack: true });
+  });
+  document.getElementById("back-to-choice-btn").addEventListener("click", showStartupMemoryStep);
+  document.getElementById("direct-start-btn").addEventListener("click", startDirectDocument);
+  document.getElementById("photo-start-btn").addEventListener("click", () => {
+    state.photoImportReplaceMode = true;
+    document.getElementById("photo-file-input").click();
+  });
+
+  // 設定開關
+  document.getElementById("settings-fab").addEventListener("click", () => {
+    openModal(document.getElementById("settings-dialog"));
+  });
+  document.getElementById("settings-close").addEventListener("click", () => {
+    closeModal(document.getElementById("settings-dialog"));
+  });
+
+  // 欄位與總額勾選
+  [
+    "sort-date-checkbox",
+    "show-wage-checkbox",
+    "show-fuel-checkbox",
+    "show-material-checkbox",
+    "show-grand-total-checkbox",
+    "show-wage-total-checkbox",
+    "show-fuel-total-checkbox",
+    "show-material-total-checkbox",
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("change", () => {
+      applyColumnVisibility();
+      updatePreview();
+      persistState();
+    });
+  });
+
+  // 本機資料夾與 Gemini 設定
+  document.getElementById("bind-folder-btn").addEventListener("click", bindLocalFolder);
+  document.getElementById("restore-folder-btn").addEventListener("click", async () => {
+    const ok = await restoreFromBoundFolder({ requestPermission: true, forceRestore: true });
+    if (ok) {
+      closeModal(document.getElementById("startup-dialog"));
+      closeModal(document.getElementById("settings-dialog"));
+      showToast("✅ 已從本機資料夾還原記憶");
+    } else {
+      showToast("找不到可還原的記憶備份檔");
+    }
+  });
+
+  const keyInput = document.getElementById("gemini-key-input");
+  keyInput.addEventListener("input", () => {
+    localStorage.setItem(GEMINI_KEY_STORAGE, keyInput.value.trim());
+    scheduleFolderSync();
+  });
+  document.getElementById("toggle-key-vis-btn").addEventListener("click", () => {
+    const isPass = keyInput.type === "password";
+    keyInput.type = isPass ? "text" : "password";
+    document.getElementById("toggle-key-vis-btn").textContent = isPass ? "隱藏" : "顯示";
+  });
+  document.getElementById("gemini-model-select").addEventListener("change", (e) => {
+    localStorage.setItem(GEMINI_MODEL_STORAGE, e.target.value);
+    scheduleFolderSync();
+  });
+  document.getElementById("gemini-fallback-checkbox").addEventListener("change", (e) => {
+    localStorage.setItem(GEMINI_FALLBACK_STORAGE, e.target.checked ? "1" : "0");
+    scheduleFolderSync();
+  });
+  document.getElementById("test-gemini-btn").addEventListener("click", testGeminiConnection);
+
+  // 匯入/匯出按鈕
+  document.getElementById("import-file-btn").addEventListener("click", () => {
+    document.getElementById("import-file-input").click();
+  });
+  document.getElementById("import-file-input").addEventListener("change", handleImportFileSelection);
+  document.getElementById("export-ods-btn").addEventListener("click", exportODS);
+  document.getElementById("export-png-btn").addEventListener("click", exportPNG);
+  document.getElementById("export-pdf-btn").addEventListener("click", exportPDF);
+
+  document.getElementById("export-json-btn").addEventListener("click", exportBackupJsonDownload);
+  document.getElementById("import-json-btn").addEventListener("click", () => {
+    document.getElementById("backup-json-input").click();
+  });
+  document.getElementById("backup-json-input").addEventListener("change", handleBackupJsonImport);
+  document.getElementById("clear-history-btn").addEventListener("click", () => {
+    if (!window.confirm("確定要清除所有已記憶的地址、金額與別名對照嗎？")) return;
+    clearAllHistory();
+    showToast("已清除所有記憶庫與別名對照");
+  });
+
+  // 日曆控制
+  document.getElementById("calendar-close").addEventListener("click", () => {
+    closeCalendar();
+  });
+  document.getElementById("cal-today-btn").addEventListener("click", () => {
+    selectDate(new Date().getDate());
+  });
+  document.getElementById("cal-yesterday-btn").addEventListener("click", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    selectDate(d.getDate());
+  });
+  document.getElementById("cal-prevrow-btn").addEventListener("click", () => {
+    const idx = state.rows.findIndex((r) => r.id === state.targetRowId);
+    for (let i = idx - 1; i >= 0; i--) {
+      if (state.rows[i].date !== null) {
+        selectDate(state.rows[i].date);
+        return;
+      }
+    }
+    showToast("上方列尚未填寫日期");
+  });
+
+  // 刪除確認
+  document.getElementById("delete-confirm-close").addEventListener("click", closeDeleteConfirm);
+  document.getElementById("delete-confirm-cancel-btn").addEventListener("click", closeDeleteConfirm);
+  document.getElementById("delete-confirm-ok-btn").addEventListener("click", confirmDelete);
+
+  // 主畫面批次別名提示
+  document.getElementById("main-alias-apply-btn").addEventListener("click", applyMainBatchAlias);
+  document.getElementById("main-alias-dismiss-btn").addEventListener("click", () => {
+    _mainBatchAlias = null;
+    document.getElementById("main-alias-banner").hidden = true;
+  });
+
+  // 浮動匯出選單
+  document.getElementById("export-fab-btn").addEventListener("click", toggleExportMenu);
+  document.querySelectorAll(".export-fab-menu-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      const type = item.dataset.export;
+      closeExportMenu();
+      if (type === "ods") exportODS();
+      else if (type === "png") exportPNG();
+      else if (type === "pdf") exportPDF();
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".export-fab")) closeExportMenu();
+  });
+
+  // OCR 視窗控制
+  document.getElementById("ocr-close-btn").addEventListener("click", closeOcrDialog);
+  document.getElementById("ocr-cancel-btn").addEventListener("click", closeOcrDialog);
+  document.getElementById("ocr-abort-btn").addEventListener("click", () => {
+    if (ocrState.abortController) ocrState.abortController.abort();
+    closeOcrDialog();
+    showToast("已取消照片辨識");
+  });
+  document.getElementById("ocr-inline-cancel-btn").addEventListener("click", closeOcrDialog);
+  document.getElementById("ocr-inline-save-btn").addEventListener("click", () => {
+    const val = document.getElementById("ocr-inline-key-input").value.trim();
+    if (!val) {
+      showToast("請先貼上 Gemini API 金鑰");
+      return;
+    }
+    localStorage.setItem(GEMINI_KEY_STORAGE, val);
+    document.getElementById("gemini-key-input").value = val;
+    scheduleFolderSync();
+    if (state.pendingOcrFiles.length) {
+      const files = [...state.pendingOcrFiles];
+      state.pendingOcrFiles = [];
+      startOcrPipeline(files);
+    }
+  });
+  document.getElementById("ocr-month-select").addEventListener("change", (e) => {
+    ocrState.targetMonthNum = MONTH_MAP[e.target.value] || ocrState.targetMonthNum;
+    renderOcrDraftRows();
+  });
+  document.getElementById("ocr-toggle-crossmonth-btn").addEventListener("click", () => {
+    ocrState.showCrossMonth = !ocrState.showCrossMonth;
+    renderOcrDraftRows();
+  });
+  document.getElementById("ocr-alias-apply-btn").addEventListener("click", applyOcrBatchAlias);
+  document.getElementById("ocr-alias-dismiss-btn").addEventListener("click", () => {
+    ocrState.pendingBatchAlias = null;
+    document.getElementById("ocr-alias-banner").hidden = true;
+  });
+  document.getElementById("ocr-apply-btn").addEventListener("click", commitOcrRowsToMain);
+
+  const photoViewport = document.getElementById("ocr-photo-viewport");
+  const zoomBtn = document.getElementById("ocr-zoom-btn");
+  const togglePhotoZoom = () => {
+    const zoomed = photoViewport.classList.toggle("zoomed");
+    zoomBtn.textContent = zoomed ? "🔍 縮回全圖" : "🔍 放大看字";
+  };
+  photoViewport.addEventListener("click", togglePhotoZoom);
+  zoomBtn.addEventListener("click", togglePhotoZoom);
+
+  // 支援直接 Ctrl+V 貼上圖片或拖曳圖片進視窗
+  document.addEventListener("paste", (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageFiles = items
+      .filter((item) => item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (!imageFiles.length) return;
+    e.preventDefault();
+    const startupOpen = document.getElementById("startup-dialog").open;
+    state.photoImportReplaceMode = startupOpen;
+    if (startupOpen) closeModal(document.getElementById("startup-dialog"));
+    launchPhotoFiles(imageFiles);
+  });
+
+  let dragDepth = 0;
+  document.addEventListener("dragenter", (e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes("Files")) return;
+    dragDepth++;
+    document.getElementById("drop-overlay").classList.add("active");
+  });
+  document.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) document.getElementById("drop-overlay").classList.remove("active");
+  });
+  document.addEventListener("dragover", (e) => {
+    if (Array.from(e.dataTransfer?.types || []).includes("Files")) e.preventDefault();
+  });
+  document.addEventListener("drop", (e) => {
+    dragDepth = 0;
+    document.getElementById("drop-overlay").classList.remove("active");
+    const files = Array.from(e.dataTransfer?.files || []).filter((f) =>
+      f.type.startsWith("image/"),
+    );
+    if (!files.length) return;
+    e.preventDefault();
+    const startupOpen = document.getElementById("startup-dialog").open;
+    state.photoImportReplaceMode = startupOpen;
+    if (startupOpen) closeModal(document.getElementById("startup-dialog"));
+    launchPhotoFiles(files);
+  });
+
+  window.addEventListener("scroll", hideSuggestions, true);
+  window.addEventListener("resize", hideSuggestions);
+}
+
+/* ============================================================
+   啟動流程（記憶判斷 → 直接開始 / 照片匯入）
+   ============================================================ */
+function showStartupMemoryStep() {
+  const memStep = document.getElementById("startup-memory-step");
+  const startStep = document.getElementById("startup-start-step");
+  startStep.hidden = true;
+  memStep.hidden = false;
+
+  const pill = document.getElementById("startup-summary-pill");
+  const summary = getSavedSummaryText();
+  pill.textContent = summary;
+}
+
+function showStartupStartStep({ allowBack }) {
+  const memStep = document.getElementById("startup-memory-step");
+  const startStep = document.getElementById("startup-start-step");
+  memStep.hidden = true;
+  startStep.hidden = false;
+  document.getElementById("back-to-choice-btn").style.visibility = allowBack ? "visible" : "hidden";
+}
+
+function getSavedSummaryText() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const folderName = localStorage.getItem(FOLDER_NAME_STORAGE);
+      return folderName ? `已綁定記憶資料夾「${folderName}」` : "尚無資料";
+    }
+    const saved = JSON.parse(raw);
+    const monthStr = saved.month ? `${saved.month}月份` : "未指定月份";
+    const meaningfulCount = (saved.rows || []).filter(
+      (r) =>
+        r &&
+        (r.date !== null ||
+          String(r.address || "").trim() !== "" ||
+          String(r.wage || "").trim() !== "" ||
+          String(r.fuel || "").trim() !== "" ||
+          String(r.material || "").trim() !== ""),
+    ).length;
+    return `${monthStr}・已記錄 ${meaningfulCount} 筆資料`;
+  } catch {
+    return "找到本機記憶資料";
+  }
+}
+
+async function continueLastDocument() {
+  // 點擊「讀取記憶」時順便檢查綁定的本機資料夾是否有更新版本
+  await restoreFromBoundFolder({ requestPermission: true, forceRestore: false });
+  const restored = restoreFromStorage();
+  await closeModal(document.getElementById("startup-dialog"));
+
+  if (restored) {
+    showToast("已載入上次的記憶資料");
+  } else {
+    initializeFreshDocument({ persist: true, focusFirstRow: false });
+    showToast("找不到可用草稿，已建立新表");
+  }
+}
+
+async function startDirectDocument() {
+  const chosenMonth = document.getElementById("startup-month-select").value;
+  initializeFreshDocument({ persist: true, focusFirstRow: true, monthOverride: chosenMonth });
+  await closeModal(document.getElementById("startup-dialog"));
+  showToast("已開啟新報表（原有地址與金額記憶皆已保留）");
+}
+
+/* ============================================================
+   文件初始化與記憶讀寫（不清空歷史詞庫與別名對照）
+   ============================================================ */
+function createBlankRow(id) {
+  return {
+    id,
+    date: null,
+    address: "",
+    wage: "",
+    fuel: "",
+    material: "",
+  };
+}
+
+function initializeFreshDocument({ persist = true, focusFirstRow = false, monthOverride = null } = {}) {
+  state.rows = [];
+  state.nextId = 1;
+  state.targetRowId = null;
+  state.pendingDeleteRowId = null;
+
+  applySettings(DEFAULT_SETTINGS);
+  if (monthOverride && MONTH_MAP[monthOverride]) {
+    document.getElementById("month-select").value = monthOverride;
+    document.getElementById("startup-month-select").value = monthOverride;
+  } else {
+    setDefaultMonthToCurrent();
+  }
+  ensureAtLeastOneRow();
+  applyColumnVisibility();
+  renderTable();
+  updatePreview();
+
+  if (persist) persistState();
+  if (focusFirstRow) focusRowAddress(state.rows[0]?.id);
+}
+
+function ensureAtLeastOneRow() {
+  if (state.rows.length > 0) return;
+  state.rows.push(createBlankRow(state.nextId++));
+}
+
+function focusRowAddress(rowId) {
+  if (!rowId) return;
+  setTimeout(() => {
+    const el = document.querySelector(`[data-row-id="${rowId}"] .address-input`);
+    if (el) el.focus();
+  }, 60);
+}
+
+function hasSavedMemory() {
+  try {
+    return Boolean(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function buildFullBackupPayload() {
+  return {
+    version: 3,
+    updatedAt: new Date().toISOString(),
+    month: document.getElementById("month-select").value,
+    settings: getSettingsFromDom(),
+    rows: state.rows.map((row) => ({
+      date: row.date,
+      address: row.address,
+      wage: row.wage,
+      fuel: row.fuel,
+      material: row.material,
+    })),
+    addressHistory: loadAddressHistory(),
+    amountHistory: loadAmountHistory(),
+    aliasMap: loadAliasMap(),
+    geminiApiKey: localStorage.getItem(GEMINI_KEY_STORAGE) || "",
+    geminiModel: localStorage.getItem(GEMINI_MODEL_STORAGE) || "gemini-4-hydrogen",
+    geminiFallback: localStorage.getItem(GEMINI_FALLBACK_STORAGE) !== "0",
+  };
+}
+
+function applyFullBackupPayload(data, { restoreDraft = true } = {}) {
+  if (!data || typeof data !== "object") return false;
+  if (Array.isArray(data.addressHistory)) saveAddressHistory(data.addressHistory);
+  if (data.amountHistory && typeof data.amountHistory === "object") saveAmountHistory(data.amountHistory);
+  if (data.aliasMap && typeof data.aliasMap === "object") saveAliasMap(data.aliasMap);
+  if (typeof data.geminiApiKey === "string" && data.geminiApiKey.trim()) {
+    localStorage.setItem(GEMINI_KEY_STORAGE, data.geminiApiKey.trim());
+  }
+  if (typeof data.geminiModel === "string" && data.geminiModel) {
+    localStorage.setItem(GEMINI_MODEL_STORAGE, data.geminiModel);
+  }
+  if (typeof data.geminiFallback === "boolean") {
+    localStorage.setItem(GEMINI_FALLBACK_STORAGE, data.geminiFallback ? "1" : "0");
+  }
+  restoreGeminiSettingsDom();
+
+  if (restoreDraft && Array.isArray(data.rows)) {
+    const draftPayload = {
+      version: 2,
+      month: data.month || document.getElementById("month-select").value,
+      settings: data.settings || DEFAULT_SETTINGS,
+      rows: data.rows,
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draftPayload));
+    return restoreFromStorage();
+  }
+  return true;
+}
+
+function persistState() {
+  try {
+    const payload = {
+      version: 2,
+      month: document.getElementById("month-select").value,
+      settings: getSettingsFromDom(),
+      rows: state.rows.map((row) => ({
+        date: row.date,
+        address: row.address,
+        wage: row.wage,
+        fuel: row.fuel,
+        material: row.material,
+      })),
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    scheduleFolderSync();
+  } catch (error) {
+    console.error("儲存本機記憶失敗", error);
+  }
+}
+
+function restoreFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    const rows = Array.isArray(saved.rows) ? saved.rows : [];
+
+    setRows(rows);
+    applySettings({ ...DEFAULT_SETTINGS, ...(saved.settings || {}) });
+    if (saved.month && MONTH_MAP[saved.month]) {
+      document.getElementById("month-select").value = saved.month;
+      document.getElementById("startup-month-select").value = saved.month;
+    } else {
+      setDefaultMonthToCurrent();
+    }
+
+    applyColumnVisibility();
+    renderTable();
+    updatePreview();
+    return true;
+  } catch (error) {
+    console.error("讀取本機記憶失敗", error);
+    return false;
+  }
+}
+
+function setRows(rows) {
+  const normalizedRows = (Array.isArray(rows) ? rows : []).map((row, index) => ({
+    id: index + 1,
+    date: normalizeImportedDay(row?.date),
+    address: String(row?.address ?? ""),
+    wage: normalizeImportedAmount(row?.wage),
+    fuel: normalizeImportedAmount(row?.fuel),
+    material: normalizeImportedAmount(row?.material),
+  }));
+
+  state.rows = normalizedRows.filter(
+    (row) =>
+      row.date !== null ||
+      row.address.trim() !== "" ||
+      row.wage !== "" ||
+      row.fuel !== "" ||
+      row.material !== "",
+  );
+
+  if (state.rows.length === 0) {
+    state.rows = [createBlankRow(1)];
+  }
+  state.rows.forEach((row, index) => {
+    row.id = index + 1;
+  });
+  state.nextId = state.rows.length + 1;
+}
+
+function getSettingsFromDom() {
+  return {
+    filename: document.getElementById("filename-input").value,
+    signature: document.getElementById("signature-input").value,
+    showWage: document.getElementById("show-wage-checkbox").checked,
+    showFuel: document.getElementById("show-fuel-checkbox").checked,
+    showMaterial: document.getElementById("show-material-checkbox").checked,
+    sortByDate: document.getElementById("sort-date-checkbox").checked,
+    showGrandTotal: document.getElementById("show-grand-total-checkbox").checked,
+    showWageTotal: document.getElementById("show-wage-total-checkbox").checked,
+    showFuelTotal: document.getElementById("show-fuel-total-checkbox").checked,
+    showMaterialTotal: document.getElementById("show-material-total-checkbox").checked,
+  };
+}
+
+function applySettings(settings = {}) {
+  document.getElementById("filename-input").value =
+    typeof settings.filename === "string" ? settings.filename : "";
+  document.getElementById("signature-input").value =
+    typeof settings.signature === "string" && settings.signature.trim() !== ""
+      ? settings.signature
+      : DEFAULT_SETTINGS.signature;
+  document.getElementById("show-wage-checkbox").checked = settings.showWage ?? DEFAULT_SETTINGS.showWage;
+  document.getElementById("show-fuel-checkbox").checked = settings.showFuel ?? DEFAULT_SETTINGS.showFuel;
+  document.getElementById("show-material-checkbox").checked = settings.showMaterial ?? DEFAULT_SETTINGS.showMaterial;
+  document.getElementById("sort-date-checkbox").checked = settings.sortByDate ?? DEFAULT_SETTINGS.sortByDate;
+  document.getElementById("show-grand-total-checkbox").checked = settings.showGrandTotal ?? DEFAULT_SETTINGS.showGrandTotal;
+  document.getElementById("show-wage-total-checkbox").checked = settings.showWageTotal ?? DEFAULT_SETTINGS.showWageTotal;
+  document.getElementById("show-fuel-total-checkbox").checked = settings.showFuelTotal ?? DEFAULT_SETTINGS.showFuelTotal;
+  document.getElementById("show-material-total-checkbox").checked = settings.showMaterialTotal ?? DEFAULT_SETTINGS.showMaterialTotal;
+}
+
+function applyColumnVisibility() {
+  const showWage = document.getElementById("show-wage-checkbox").checked;
+  const showFuel = document.getElementById("show-fuel-checkbox").checked;
+  const showMaterial = document.getElementById("show-material-checkbox").checked;
+  document.querySelectorAll('[data-col="wage"]').forEach((el) => el.classList.toggle("col-hidden", !showWage));
+  document.querySelectorAll('[data-col="fuel"]').forEach((el) => el.classList.toggle("col-hidden", !showFuel));
+  document.querySelectorAll('[data-col="material"]').forEach((el) => el.classList.toggle("col-hidden", !showMaterial));
+}
+
+/* ============================================================
+   本機資料夾自動同步（File System Access API + IndexedDB）
+   ============================================================ */
+function openFsDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("不支援 IndexedDB"));
+      return;
+    }
+    const req = indexedDB.open(FS_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(FS_STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveDirHandle(handle) {
+  const db = await openFsDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FS_STORE_NAME, "readwrite");
+    tx.objectStore(FS_STORE_NAME).put(handle, FS_DIR_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadDirHandle() {
+  try {
+    const db = await openFsDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(FS_STORE_NAME, "readonly");
+      const req = tx.objectStore(FS_STORE_NAME).get(FS_DIR_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function bindLocalFolder() {
+  if (!window.showDirectoryPicker) {
+    showToast("目前環境不支援直接選取資料夾（需透過 https:// 或 localhost 開啟 Edge/Chrome）");
+    return;
+  }
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    await saveDirHandle(dirHandle);
+    localStorage.setItem(FOLDER_NAME_STORAGE, dirHandle.name);
+    updateFolderStatusUI();
+
+    // 若資料夾內已有舊記憶檔且目前沒有本地草稿，提示載入
+    const fileData = await readBackupJsonFromDir(dirHandle);
+    if (fileData && !hasMeaningfulRows()) {
+      applyFullBackupPayload(fileData, { restoreDraft: true });
+      showToast(`✅ 已綁定「${dirHandle.name}」並載入資料夾內的記憶檔`);
+    } else {
+      await writeBackupJsonToDir(dirHandle, buildFullBackupPayload());
+      showToast(`✅ 已綁定「${dirHandle.name}」並建立記憶檔`);
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      console.error(err);
+      showToast("綁定資料夾失敗：" + err.message);
+    }
+  }
+}
+
+function updateFolderStatusUI() {
+  const el = document.getElementById("folder-status-text");
+  const hint = document.getElementById("folder-hint-text");
+  const name = localStorage.getItem(FOLDER_NAME_STORAGE);
+  if (!window.showDirectoryPicker) {
+    el.innerHTML = "此瀏覽器環境不支援自動資料夾寫入";
+    hint.textContent = "若用 GitHub Pages (https://) 或 localhost 開啟 Edge/Chrome，即可綁定本機資料夾自動同步。目前仍可用瀏覽器本機儲存與匯出 .json 備份。";
+    return;
+  }
+  if (name) {
+    el.innerHTML = `已綁定資料夾：<strong>${escHtml(name)}</strong>`;
+  } else {
+    el.textContent = "尚未綁定本機資料夾";
+  }
+}
+
+async function ensureDirPermission(dirHandle, requestPermission) {
+  if (!dirHandle) return false;
+  try {
+    const perm = await dirHandle.queryPermission({ mode: "readwrite" });
+    if (perm === "granted") return true;
+    if (!requestPermission) return false;
+    const req = await dirHandle.requestPermission({ mode: "readwrite" });
+    return req === "granted";
+  } catch {
+    return false;
+  }
+}
+
+async function writeBackupJsonToDir(dirHandle, payload) {
+  const fileHandle = await dirHandle.getFileHandle(BACKUP_JSON_FILENAME, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(JSON.stringify(payload, null, 2));
+  await writable.close();
+}
+
+async function readBackupJsonFromDir(dirHandle) {
+  try {
+    const fileHandle = await dirHandle.getFileHandle(BACKUP_JSON_FILENAME);
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function scheduleFolderSync() {
+  if (_folderSyncTimer) clearTimeout(_folderSyncTimer);
+  _folderSyncTimer = setTimeout(() => {
+    syncFolderBackup({ requestPermission: false });
+  }, 900);
+}
+
+async function syncFolderBackup({ requestPermission = false } = {}) {
+  try {
+    const dirHandle = await loadDirHandle();
+    if (!dirHandle) return false;
+    const granted = await ensureDirPermission(dirHandle, requestPermission);
+    if (!granted) return false;
+    await writeBackupJsonToDir(dirHandle, buildFullBackupPayload());
+    return true;
+  } catch (err) {
+    console.warn("同步資料夾記憶略過：", err);
+    return false;
+  }
+}
+
+async function restoreFromBoundFolder({ requestPermission = true, forceRestore = false } = {}) {
+  try {
+    const dirHandle = await loadDirHandle();
+    if (!dirHandle) return false;
+    const granted = await ensureDirPermission(dirHandle, requestPermission);
+    if (!granted) return false;
+    const folderData = await readBackupJsonFromDir(dirHandle);
+    if (!folderData) return false;
+
+    const localRaw = localStorage.getItem(STORAGE_KEY);
+    if (forceRestore || !localRaw) {
+      return applyFullBackupPayload(folderData, { restoreDraft: true });
+    }
+
+    const localParsed = JSON.parse(localRaw);
+    const localTime = Date.parse(localParsed?.updatedAt || 0) || 0;
+    const folderTime = Date.parse(folderData?.updatedAt || 0) || 0;
+
+    if (folderTime > localTime) {
+      return applyFullBackupPayload(folderData, { restoreDraft: true });
+    }
+    // 本機比資料夾新：順便把最新更新回寫資料夾
+    await writeBackupJsonToDir(dirHandle, buildFullBackupPayload());
+    return false;
+  } catch (err) {
+    console.warn("資料夾檢查略過：", err);
+    return false;
+  }
+}
+
+function exportBackupJsonDownload() {
+  const blob = new Blob([JSON.stringify(buildFullBackupPayload(), null, 2)], {
+    type: "application/json",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = BACKUP_JSON_FILENAME;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  showToast("✅ 已下載記憶備份檔");
+}
+
+async function handleBackupJsonImport(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    applyFullBackupPayload(data, { restoreDraft: true });
+    closeModal(document.getElementById("settings-dialog"));
+    closeModal(document.getElementById("startup-dialog"));
+    showToast("✅ 已匯入記憶備份檔");
+  } catch (err) {
+    showToast("記憶檔格式錯誤：" + err.message);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+/* ============================================================
+   資料列渲染、輸入法保護、算式求值、復原刪除
+   ============================================================ */
+function addRow({ focus = true, persist = true } = {}) {
+  const id = state.nextId++;
+  state.rows.push(createBlankRow(id));
+  renderTable();
+  updatePreview();
+  if (persist) persistState();
+  if (focus) focusRowAddress(id);
+}
+
+function deleteRow(id) {
+  const idx = state.rows.findIndex((row) => row.id === id);
+  if (idx === -1) return;
+  const removed = { ...state.rows[idx] };
+  state.lastDeleted = { row: removed, index: idx };
+
+  state.rows.splice(idx, 1);
+  ensureAtLeastOneRow();
+  renderTable();
+  updatePreview();
+  persistState();
+
+  const hasContent =
+    removed.date !== null ||
+    removed.address.trim() !== "" ||
+    removed.wage !== "" ||
+    removed.fuel !== "" ||
+    removed.material !== "";
+  if (hasContent) {
+    showToast("已刪除此列", {
+      actionLabel: "復原",
+      duration: 5000,
+      onAction: () => {
+        if (!state.lastDeleted) return;
+        const { row, index } = state.lastDeleted;
+        state.lastDeleted = null;
+        // 若目前只剩 1 列完全空白，復原時把它換掉
+        if (
+          state.rows.length === 1 &&
+          state.rows[0].date === null &&
+          !state.rows[0].address.trim() &&
+          !state.rows[0].wage &&
+          !state.rows[0].fuel &&
+          !state.rows[0].material
+        ) {
+          state.rows = [{ ...row, id: state.nextId++ }];
+        } else {
+          state.rows.splice(Math.min(index, state.rows.length), 0, { ...row, id: state.nextId++ });
+        }
+        renderTable();
+        updatePreview();
+        persistState();
+        showToast("已復原刪除的資料");
+      },
+    });
+  }
+}
+
+function openDeleteConfirm(rowId) {
+  const row = state.rows.find((r) => r.id === rowId);
+  const isBlank =
+    row &&
+    row.date === null &&
+    !row.address.trim() &&
+    !row.wage &&
+    !row.fuel &&
+    !row.material;
+  // 若是完全空白列，直接刪除免確認
+  if (isBlank && state.rows.length > 1) {
+    deleteRow(rowId);
+    return;
+  }
+
+  state.pendingDeleteRowId = rowId;
+  const preview = document.getElementById("delete-confirm-preview");
+  if (row) {
+    const datePart = row.date !== null ? `${row.date}日` : "未填日期";
+    const addrPart = row.address.trim() || "（無地址）";
+    preview.textContent = `${datePart}｜${addrPart}`;
+  } else {
+    preview.textContent = "";
+  }
+  openModal(document.getElementById("delete-confirm-dialog"));
+}
+
+function closeDeleteConfirm() {
+  closeModal(document.getElementById("delete-confirm-dialog"));
+  state.pendingDeleteRowId = null;
+}
+
+function confirmDelete() {
+  const id = state.pendingDeleteRowId;
+  closeDeleteConfirm();
+  if (typeof id === "number") deleteRow(id);
+}
+
+function updateRowField(id, field, value) {
+  const row = state.rows.find((item) => item.id === id);
+  if (!row) return;
+  row[field] = value;
+  updateTotals();
+  updatePreview();
+  persistState();
+  autoAddRowIfNeeded(id);
+}
+
+function evaluateAmountExpr(raw) {
+  const text = String(raw ?? "").replace(/,/g, "").trim();
+  if (!text) return "";
+  if (!/^[+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)*$/.test(text)) {
+    const num = Number(text);
+    return Number.isFinite(num) ? String(num) : "";
+  }
+  const tokens = text.replace(/\s+/g, "").match(/[+-]?\d+(?:\.\d+)?/g);
+  if (!tokens) return "";
+  const sum = tokens.reduce((acc, t) => acc + parseFloat(t), 0);
+  if (!Number.isFinite(sum)) return "";
+  return String(Math.round(sum * 100) / 100);
+}
+
+function parseNumericForTotal(raw) {
+  const evaled = evaluateAmountExpr(raw);
+  return evaled ? parseFloat(evaled) || 0 : 0;
+}
+
+function createRowTr(row) {
+  const tr = document.createElement("tr");
+  tr.dataset.rowId = row.id;
+
+  tr.innerHTML = `
+    <td>
+      <button class="date-btn ${row.date !== null ? "has-value" : ""}"
+              data-row-id="${row.id}"
+              id="date-btn-${row.id}"
+              type="button"
+              title="點擊選擇日期">
+        ${row.date !== null ? row.date : ""}
+      </button>
+    </td>
+    <td>
+      <textarea class="address-input"
+             data-row-id="${row.id}"
+             placeholder="點此選常用地址或輸入..."
+             rows="1">${escHtml(row.address)}</textarea>
+    </td>
+    <td data-col="wage">
+      <input class="amount-input"
+             type="text"
+             inputmode="decimal"
+             data-row-id="${row.id}"
+             data-field="wage"
+             value="${escHtml(row.wage)}" />
+    </td>
+    <td data-col="fuel">
+      <input class="amount-input"
+             type="text"
+             inputmode="decimal"
+             data-row-id="${row.id}"
+             data-field="fuel"
+             value="${escHtml(row.fuel)}" />
+    </td>
+    <td data-col="material">
+      <input class="amount-input"
+             type="text"
+             inputmode="decimal"
+             data-row-id="${row.id}"
+             data-field="material"
+             value="${escHtml(row.material || "")}" />
+    </td>
+    <td>
+      <div class="row-actions">
+        <button class="copy-btn" data-row-id="${row.id}" type="button" title="複製此列到下一行">📋</button>
+        <button class="del-btn" data-row-id="${row.id}" type="button" title="刪除此列">✕</button>
+      </div>
+    </td>
+  `;
+
+  tr.querySelector(".date-btn").addEventListener("click", () => {
+    state.targetRowId = row.id;
+    openCalendar();
+  });
+
+  const addrInp = tr.querySelector(".address-input");
+  let _addrBeforeFocus = row.address;
+  addrInp.addEventListener("focus", () => {
+    _addrBeforeFocus = addrInp.value.trim();
+    showAddressSuggestions(addrInp);
+  });
+  addrInp.addEventListener("input", () => {
+    updateRowField(row.id, "address", addrInp.value);
+    fitTextareaHeight(addrInp);
+    showAddressSuggestions(addrInp);
+  });
+  addrInp.addEventListener("blur", () => {
+    setTimeout(hideSuggestions, 150);
+    const addr = addrInp.value.trim();
+    if (addr) {
+      addAddressToHistory(addr);
+      if (_addrBeforeFocus && _addrBeforeFocus !== addr) {
+        checkMainBatchReplace(_addrBeforeFocus, addr, row.id);
+      }
+    }
+  });
+  setTimeout(() => fitTextareaHeight(addrInp), 0);
+
+  tr.querySelectorAll(".amount-input").forEach((inp) => {
+    inp.addEventListener("focus", () => {
+      showAmountSuggestions(inp);
+    });
+    inp.addEventListener("input", () => {
+      // 允許數字與簡易加減算式，過濾其他雜字
+      const cleaned = inp.value.replace(/[^\d.+\-\s]/g, "");
+      if (cleaned !== inp.value) inp.value = cleaned;
+      updateRowField(row.id, inp.dataset.field, inp.value);
+      showAmountSuggestions(inp);
+    });
+    inp.addEventListener("blur", () => {
+      setTimeout(hideSuggestions, 150);
+      const evaluated = evaluateAmountExpr(inp.value);
+      if (evaluated !== inp.value) {
+        inp.value = evaluated;
+        updateRowField(row.id, inp.dataset.field, evaluated);
+      }
+      if (evaluated && Number.isFinite(Number(evaluated)) && Number(evaluated) > 0) {
+        addAmountToHistory(inp.dataset.field, evaluated);
+      }
+    });
+  });
+
+  // Enter 鍵跳欄（加入 e.isComposing 防中文輸入法誤觸 + 自動跳過隱藏欄 + 支援建議選單鍵盤選擇）
+  const inputs = Array.from(tr.querySelectorAll("input, textarea"));
+  inputs.forEach((inp) => {
+    inp.addEventListener("keydown", (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+
+      if (isSuggestionsOpen() && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        e.preventDefault();
+        moveSuggestionHighlight(e.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+
+      if (e.key !== "Enter" || e.shiftKey) return;
+
+      if (isSuggestionsOpen() && applyHighlightedSuggestion()) {
+        e.preventDefault();
+        hideSuggestions();
+        return;
+      }
+
+      e.preventDefault();
+      hideSuggestions();
+
+      // 若金額輸入的是算式，按 Enter 時先結算
+      if (inp.classList.contains("amount-input")) {
+        const evaluated = evaluateAmountExpr(inp.value);
+        if (evaluated !== inp.value) {
+          inp.value = evaluated;
+          updateRowField(row.id, inp.dataset.field, evaluated);
+        }
+      }
+
+      const visibleInputs = inputs.filter((el) => !el.closest("td")?.classList.contains("col-hidden"));
+      const curIdx = visibleInputs.indexOf(inp);
+      if (curIdx >= 0 && curIdx < visibleInputs.length - 1) {
+        visibleInputs[curIdx + 1].focus();
+        return;
+      }
+
+      const rowIdx = state.rows.findIndex((r) => r.id === row.id);
+      if (rowIdx === state.rows.length - 1) {
+        addRow();
+      } else {
+        const nextRowId = state.rows[rowIdx + 1].id;
+        document.querySelector(`[data-row-id="${nextRowId}"] .address-input`)?.focus();
+      }
+    });
+  });
+
+  tr.querySelector(".copy-btn").addEventListener("click", () => copyRow(row.id));
+  tr.querySelector(".del-btn").addEventListener("click", () => openDeleteConfirm(row.id));
+
+  return tr;
+}
+
+function renderTable() {
+  const tbody = document.getElementById("table-body");
+  tbody.innerHTML = "";
+  state.rows.forEach((row) => {
+    tbody.appendChild(createRowTr(row));
+  });
+  applyColumnVisibility();
+  updateTotals();
+}
+
+function fitTextareaHeight(el) {
+  el.style.height = "auto";
+  el.style.height = Math.max(40, el.scrollHeight) + "px";
+}
+
+function getTotals() {
+  let wage = 0;
+  let fuel = 0;
+  let material = 0;
+  state.rows.forEach((row) => {
+    wage += parseNumericForTotal(row.wage);
+    fuel += parseNumericForTotal(row.fuel);
+    material += parseNumericForTotal(row.material);
+  });
+  return { wage, fuel, material };
+}
+
+function updateTotals() {
+  const { wage, fuel, material } = getTotals();
+  document.getElementById("total-wage").textContent = wage ? wage.toLocaleString() : "";
+  document.getElementById("total-fuel").textContent = fuel ? fuel.toLocaleString() : "";
+  document.getElementById("total-material").textContent = material ? material.toLocaleString() : "";
+}
+
+function checkMainBatchReplace(oldVal, newVal, editedRowId) {
+  const matches = state.rows.filter((r) => r.id !== editedRowId && r.address.trim() === oldVal);
+  if (!matches.length) return;
+  _mainBatchAlias = { oldVal, newVal };
+  document.getElementById("main-alias-banner-text").textContent =
+    `偵測到還有 ${matches.length} 列也是「${oldVal}」`;
+  document.getElementById("main-alias-apply-btn").textContent = `一併改為「${newVal}」並記住`;
+  document.getElementById("main-alias-banner").hidden = false;
+}
+
+function applyMainBatchAlias() {
+  if (!_mainBatchAlias) return;
+  const { oldVal, newVal } = _mainBatchAlias;
+  state.rows.forEach((r) => {
+    if (r.address.trim() === oldVal) r.address = newVal;
+  });
+  learnAliasIfNeeded(oldVal, newVal);
+  addAddressToHistory(newVal);
+  _mainBatchAlias = null;
+  document.getElementById("main-alias-banner").hidden = true;
+  renderTable();
+  updatePreview();
+  persistState();
+  showToast(`已一併更新並記住對照：${oldVal} → ${newVal}`);
+}
+
+/* ============================================================
+   日曆選擇器
+   ============================================================ */
+function getMonthNum() {
+  const value = document.getElementById("month-select").value;
+  return MONTH_MAP[value] || new Date().getMonth() + 1;
+}
+
+function getDaysInMonth(month) {
+  const year = new Date().getFullYear();
+  return new Date(year, month, 0).getDate();
+}
+
+function getFirstDayOfWeek(month) {
+  const year = new Date().getFullYear();
+  return new Date(year, month - 1, 1).getDay();
+}
+
+function openCalendar() {
+  const month = getMonthNum();
+  const monthValue = document.getElementById("month-select").value;
+  document.getElementById("calendar-month-title").textContent = monthValue + "月份";
+
+  const grid = document.getElementById("calendar-grid");
+  grid.innerHTML = "";
+
+  ["日", "一", "二", "三", "四", "五", "六"].forEach((dayName) => {
+    const el = document.createElement("div");
+    el.className = "calendar-day-name";
+    el.textContent = dayName;
+    grid.appendChild(el);
+  });
+
+  const firstDay = getFirstDayOfWeek(month);
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement("button");
+    el.className = "calendar-day empty";
+    el.type = "button";
+    el.disabled = true;
+    grid.appendChild(el);
+  }
+
+  const daysInMonth = getDaysInMonth(month);
+  const row = state.rows.find((item) => item.id === state.targetRowId);
+  const selectedDay = row ? row.date : null;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "calendar-day" + (day === selectedDay ? " selected" : "");
+    btn.textContent = day;
+    btn.addEventListener("click", () => selectDate(day));
+    grid.appendChild(btn);
+  }
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "calendar-clear-btn";
+  clearBtn.style.gridColumn = "1 / -1";
+  clearBtn.textContent = "清除日期";
+  clearBtn.addEventListener("click", () => selectDate(null));
+  grid.appendChild(clearBtn);
+
+  openModal(document.getElementById("calendar-dialog"));
+}
+
+function selectDate(day) {
+  const row = state.rows.find((item) => item.id === state.targetRowId);
+  if (row) {
+    row.date = day;
+    const btn = document.getElementById(`date-btn-${row.id}`);
+    if (btn) {
+      btn.textContent = day !== null ? day : "";
+      btn.classList.toggle("has-value", day !== null);
+    }
+    updatePreview();
+    persistState();
+    autoAddRowIfNeeded(row.id);
+  }
+  closeCalendar();
+}
+
+function closeCalendar() {
+  closeModal(document.getElementById("calendar-dialog"));
+  state.targetRowId = null;
+}
+
+/* ============================================================
+   預覽與匯出（ODS / PNG / PDF + 同步更新資料夾記憶）
+   ============================================================ */
+function getValidRows() {
+  let validRows = state.rows.filter(
+    (row) =>
+      row.date !== null ||
+      row.address.trim() !== "" ||
+      String(row.wage).trim() !== "" ||
+      String(row.fuel).trim() !== "" ||
+      String(row.material || "").trim() !== "",
+  );
+
+  if (document.getElementById("sort-date-checkbox").checked) {
+    validRows = [...validRows].sort((a, b) => {
+      const dateA = a.date !== null ? parseInt(a.date, 10) : 999;
+      const dateB = b.date !== null ? parseInt(b.date, 10) : 999;
+      return dateA - dateB;
+    });
+  }
+  return validRows;
+}
+
+function updatePreview() {
+  const monthValue = document.getElementById("month-select").value;
+  const signature = (document.getElementById("signature-input").value || "").trim() || "柏盛";
+  const { wage: totalWage, fuel: totalFuel, material: totalMaterial } = getTotals();
+
+  const showWage = document.getElementById("show-wage-checkbox").checked;
+  const showFuel = document.getElementById("show-fuel-checkbox").checked;
+  const showMaterial = document.getElementById("show-material-checkbox").checked;
+  const showGrandTotal = document.getElementById("show-grand-total-checkbox").checked;
+  const showWageTotal = document.getElementById("show-wage-total-checkbox").checked;
+  const showFuelTotal = document.getElementById("show-fuel-total-checkbox").checked;
+  const showMaterialTotal = document.getElementById("show-material-total-checkbox").checked;
+
+  const grandTotal = totalWage + totalFuel + totalMaterial;
+  const doc = document.getElementById("preview-doc");
+  let html = `<table class="preview-table"><thead><tr class="header-row">
+    <th colspan="2" style="text-align: center;">${escHtml(monthValue)}月份</th>`;
+  if (showWage) html += `<th style="text-align: center;">工資</th>`;
+  if (showFuel) html += `<th style="text-align: center;">油資</th>`;
+  if (showMaterial) html += `<th style="text-align: center;">材料</th>`;
+  html += `</tr></thead><tbody>`;
+
+  const validRows = getValidRows();
+  validRows.forEach((row) => {
+    const w = parseNumericForTotal(row.wage);
+    const f = parseNumericForTotal(row.fuel);
+    const m = parseNumericForTotal(row.material);
+    html += `<tr class="data-row">
+      <td>${row.date !== null ? row.date : ""}</td>
+      <td style="text-align: left;">${escHtml(row.address)}</td>`;
+    if (showWage) html += `<td>${row.wage !== "" && w ? w.toLocaleString() : ""}</td>`;
+    if (showFuel) html += `<td>${row.fuel !== "" && f ? f.toLocaleString() : ""}</td>`;
+    if (showMaterial) html += `<td>${row.material !== "" && m ? m.toLocaleString() : ""}</td>`;
+    html += `</tr>`;
+  });
+
+  const colCount = 2 + (showWage ? 1 : 0) + (showFuel ? 1 : 0) + (showMaterial ? 1 : 0);
+  html += `<tr class="empty-row"><td colspan="${colCount}"></td></tr>`;
+  html += `<tr class="sum-row"><td></td><td></td>`;
+  if (showWage) html += `<td>${totalWage ? totalWage.toLocaleString() : ""}</td>`;
+  if (showFuel) html += `<td>${totalFuel ? totalFuel.toLocaleString() : ""}</td>`;
+  if (showMaterial) html += `<td>${totalMaterial ? totalMaterial.toLocaleString() : ""}</td>`;
+  html += `</tr>`;
+
+  function renderSummaryRow(label, amount) {
+    let rowHtml = `<tr class="summary-row"><td></td><td style="text-align:left; padding-right:20px;">${label}: ${
+      amount ? amount.toLocaleString() : 0
+    }</td>`;
+    if (showWage) rowHtml += `<td></td>`;
+    if (showFuel) rowHtml += `<td></td>`;
+    if (showMaterial) rowHtml += `<td></td>`;
+    rowHtml += `</tr>`;
+    return rowHtml;
+  }
+
+  if (showWageTotal) html += renderSummaryRow("工資", totalWage);
+  if (showFuelTotal) html += renderSummaryRow("油資", totalFuel);
+  if (showMaterialTotal) html += renderSummaryRow("材料", totalMaterial);
+  if (showGrandTotal) html += renderSummaryRow("共計", grandTotal);
+
+  html += `<tr class="summary-row"><td></td><td style="text-align:right; padding-right:20px;">${escHtml(signature)}</td>`;
+  if (showWage) html += `<td></td>`;
+  if (showFuel) html += `<td></td>`;
+  if (showMaterial) html += `<td></td>`;
+  html += `</tr></tbody></table>`;
+
+  doc.innerHTML = html;
+}
+
+function getFilename(ext) {
+  const raw = document.getElementById("filename-input").value.trim();
+  const monthVal = document.getElementById("month-select").value;
+  return (raw || `${monthVal}月份薪資油資報表`) + "." + ext;
+}
+
+function commitVisibleHistoryFromRows() {
+  state.rows.forEach((r) => {
+    const addr = r.address.trim();
+    if (addr) addAddressToHistory(addr);
+    ["wage", "fuel", "material"].forEach((f) => {
+      const val = evaluateAmountExpr(r[f]);
+      if (val && Number(val) > 0) addAmountToHistory(f, val);
+    });
+  });
+}
+
+async function exportODS() {
+  commitVisibleHistoryFromRows();
+  const synced = await syncFolderBackup({ requestPermission: true });
+
+  const monthValue = document.getElementById("month-select").value;
+  const signature = (document.getElementById("signature-input").value || "").trim() || "柏盛";
+  const { wage: totalWage, fuel: totalFuel, material: totalMaterial } = getTotals();
+
+  const showWage = document.getElementById("show-wage-checkbox").checked;
+  const showFuel = document.getElementById("show-fuel-checkbox").checked;
+  const showMaterial = document.getElementById("show-material-checkbox").checked;
+  const showGrandTotal = document.getElementById("show-grand-total-checkbox").checked;
+  const showWageTotal = document.getElementById("show-wage-total-checkbox").checked;
+  const showFuelTotal = document.getElementById("show-fuel-total-checkbox").checked;
+  const showMaterialTotal = document.getElementById("show-material-total-checkbox").checked;
+
+  const grandTotal = totalWage + totalFuel + totalMaterial;
+  const wsData = [];
+  const headerRow = ["", monthValue + "月份"];
+  if (showWage) headerRow.push("工資");
+  if (showFuel) headerRow.push("油資");
+  if (showMaterial) headerRow.push("材料");
+  wsData.push(headerRow);
+
+  const validRows = getValidRows();
+  validRows.forEach((row) => {
+    const w = parseNumericForTotal(row.wage);
+    const f = parseNumericForTotal(row.fuel);
+    const m = parseNumericForTotal(row.material);
+    const dataRow = [row.date !== null ? row.date : "", row.address];
+    if (showWage) dataRow.push(row.wage !== "" ? w : "");
+    if (showFuel) dataRow.push(row.fuel !== "" ? f : "");
+    if (showMaterial) dataRow.push(row.material !== "" ? m : "");
+    wsData.push(dataRow);
+  });
+
+  const emptyRow = ["", ""];
+  if (showWage) emptyRow.push("");
+  if (showFuel) emptyRow.push("");
+  if (showMaterial) emptyRow.push("");
+  wsData.push(emptyRow);
+
+  const sumRow = ["", ""];
+  if (showWage) sumRow.push(totalWage || "");
+  if (showFuel) sumRow.push(totalFuel || "");
+  if (showMaterial) sumRow.push(totalMaterial || "");
+  wsData.push(sumRow);
+
+  for (let i = 0; i < 13; i++) wsData.push([...emptyRow]);
+
+  function createSummaryRow(label, amount) {
+    const row = ["", `                    ${label}:${amount ? amount : 0}`];
+    if (showWage) row.push("");
+    if (showFuel) row.push("");
+    if (showMaterial) row.push("");
+    return row;
+  }
+
+  if (showWageTotal) wsData.push(createSummaryRow("工資", totalWage));
+  if (showFuelTotal) wsData.push(createSummaryRow("油資", totalFuel));
+  if (showMaterialTotal) wsData.push(createSummaryRow("材料", totalMaterial));
+  if (showGrandTotal) wsData.push(createSummaryRow("共計", grandTotal));
+
+  wsData.push([...emptyRow], [...emptyRow]);
+  const signRow = ["", `                            ${signature}`];
+  if (showWage) signRow.push("");
+  if (showFuel) signRow.push("");
+  if (showMaterial) signRow.push("");
+  wsData.push(signRow);
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const cols = [{ wch: 6 }, { wch: 40 }];
+  if (showWage) cols.push({ wch: 10 });
+  if (showFuel) cols.push({ wch: 10 });
+  if (showMaterial) cols.push({ wch: 10 });
+  ws["!cols"] = cols;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "工作表1");
+  XLSX.writeFile(wb, getFilename("ods"), { bookType: "ods" });
+  showToast(synced ? "✅ ODS 已下載，並已更新本機資料夾記憶檔" : "✅ ODS 檔已下載");
+}
+
+async function exportPNG() {
+  commitVisibleHistoryFromRows();
+  const synced = await syncFolderBackup({ requestPermission: true });
+
+  try {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    const previewEl = document.getElementById("preview-doc");
+    const originalStyle = previewEl.style.cssText;
+    previewEl.style.width = "800px";
+    previewEl.style.padding = "20px";
+    previewEl.style.backgroundColor = "#fff";
+    previewEl.style.fontFamily = "'Noto Serif TC', serif";
+    previewEl.style.border = "none";
+
+    const canvas = await window.html2canvas(previewEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+    previewEl.style.cssText = originalStyle;
+
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = getFilename("png");
+    a.click();
+    showToast(synced ? "✅ PNG 已下載，並已更新本機資料夾記憶檔" : "✅ PNG 檔已下載");
+  } catch (err) {
+    console.error(err);
+    showToast("匯出 PNG 失敗，請確認網路連線後重試");
+  }
+}
+
+async function exportPDF() {
+  commitVisibleHistoryFromRows();
+  const synced = await syncFolderBackup({ requestPermission: true });
+
+  const originalTitle = document.title;
+  document.title = getFilename("pdf").replace(".pdf", "");
+
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+      showToast(
+        synced
+          ? "請於列印視窗選擇「另存為 PDF」（本機資料夾記憶檔已同步更新）"
+          : "請確認目的地選擇的是瀏覽器的「另存為 PDF」",
+      );
+    }, 600);
+  }, 80);
+}
+
+/* ============================================================
+   舊 ODS / Excel 匯入（順便把地址與金額餵入歷史記憶）
+   ============================================================ */
+async function handleImportFileSelection(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const workbook = XLSX.read(await file.arrayBuffer(), {
+      type: "array",
+      raw: false,
+      cellDates: true,
+    });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) throw new Error("找不到可讀取的工作表");
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], {
+      header: 1,
+      defval: "",
+      blankrows: false,
+      raw: false,
+    });
+    const parsed = parseImportedSheet(rows);
+    if (!parsed.rows.length) throw new Error("匯入檔中找不到可編輯資料");
+
+    if (hasMeaningfulRows() && !window.confirm("匯入後會用新資料覆蓋目前內容，確定要繼續嗎？")) {
+      return;
+    }
+
+    if (parsed.month && MONTH_MAP[parsed.month]) {
+      document.getElementById("month-select").value = parsed.month;
+      document.getElementById("startup-month-select").value = parsed.month;
+    }
+    applySettings({
+      ...DEFAULT_SETTINGS,
+      ...(parsed.settings || {}),
+      filename: stripExtension(file.name),
+    });
+    setRows(parsed.rows);
+
+    // 將舊表內的地址與金額累積進個人歷史庫
+    parsed.rows.forEach((r) => {
+      if (r.address && r.address.trim()) addAddressToHistory(r.address.trim());
+      ["wage", "fuel", "material"].forEach((f) => {
+        if (r[f] && Number(r[f]) > 0) addAmountToHistory(f, r[f]);
+      });
+    });
+
+    applyColumnVisibility();
+    renderTable();
+    updatePreview();
+    persistState();
+    closeModal(document.getElementById("settings-dialog"));
+    closeModal(document.getElementById("startup-dialog"));
+    showToast(`✅ 已匯入 ${file.name} 並記住其中地址`);
+  } catch (error) {
+    console.error(error);
+    showToast(`匯入失敗：${error.message || "請確認檔案格式"}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function hasMeaningfulRows() {
+  return state.rows.some(
+    (row) =>
+      row.date !== null ||
+      row.address.trim() !== "" ||
+      row.wage !== "" ||
+      row.fuel !== "" ||
+      row.material !== "",
+  );
+}
+
+function parseImportedSheet(sheetRows) {
+  const rows = (Array.isArray(sheetRows) ? sheetRows : []).map((row) =>
+    Array.isArray(row) ? row.map((cell) => (cell == null ? "" : cell)) : [],
+  );
+  const nonEmptyRows = rows.filter((row) => row.some((cell) => normalizeText(cell) !== ""));
+  if (!nonEmptyRows.length) return { month: null, settings: {}, rows: [] };
+
+  const explicitHeader = findExplicitHeader(nonEmptyRows);
+  const month = extractMonthFromRows(nonEmptyRows);
+  if (explicitHeader) return parseRowsWithExplicitHeader(nonEmptyRows, explicitHeader, month);
+  return parseRowsWithExportedFormat(nonEmptyRows, month);
+}
+
+function findExplicitHeader(rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const normalized = rows[i].map(normalizeText);
+    const hasDate = normalized.includes("日期");
+    const hasAddress = normalized.includes("地址");
+    const hasAnyAmount = ["工資", "油資", "材料"].some((label) => normalized.includes(label));
+    if (hasDate && (hasAddress || hasAnyAmount)) {
+      return {
+        index: i,
+        map: {
+          date: normalized.indexOf("日期"),
+          address: normalized.indexOf("地址"),
+          wage: normalized.indexOf("工資"),
+          fuel: normalized.indexOf("油資"),
+          material: normalized.indexOf("材料"),
+        },
+      };
+    }
+  }
+  return null;
+}
+
+function parseRowsWithExplicitHeader(rows, headerInfo, month) {
+  const { map } = headerInfo;
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    showWage: map.wage !== -1,
+    showFuel: map.fuel !== -1,
+    showMaterial: map.material !== -1,
+  };
+  const parsedRows = [];
+  for (let i = headerInfo.index + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (isSummaryRow(row) || isLikelyTotalsRow(row, map)) break;
+    const item = buildImportedRowFromMap(row, map);
+    if (item) parsedRows.push(item);
+  }
+  return { month, settings, rows: parsedRows };
+}
+
+function parseRowsWithExportedFormat(rows, month) {
+  const headerRow = rows[0] || [];
+  const normalizedHeader = headerRow.map(normalizeText);
+  const map = {
+    date: 0,
+    address: 1,
+    wage: normalizedHeader.indexOf("工資"),
+    fuel: normalizedHeader.indexOf("油資"),
+    material: normalizedHeader.indexOf("材料"),
+  };
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    showWage: map.wage !== -1,
+    showFuel: map.fuel !== -1,
+    showMaterial: map.material !== -1,
+  };
+  const parsedRows = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (isSummaryRow(row) || isLikelyTotalsRow(row, map)) break;
+    const item = buildImportedRowFromMap(row, map);
+    if (item) parsedRows.push(item);
+  }
+  return { month, settings, rows: parsedRows };
+}
+
+function buildImportedRowFromMap(row, map) {
+  const address = getCellByIndex(row, map.address).trim();
+  const date = normalizeImportedDay(getCellByIndex(row, map.date));
+  const wage = normalizeImportedAmount(getCellByIndex(row, map.wage));
+  const fuel = normalizeImportedAmount(getCellByIndex(row, map.fuel));
+  const material = normalizeImportedAmount(getCellByIndex(row, map.material));
+  if (date === null && !address && !wage && !fuel && !material) return null;
+  return { date, address, wage, fuel, material };
+}
+
+function getCellByIndex(row, index) {
+  if (typeof index !== "number" || index < 0) return "";
+  return String(row?.[index] ?? "");
+}
+
+function isSummaryRow(row) {
+  const text = row.map(normalizeText).join(" ");
+  const sig = (document.getElementById("signature-input")?.value || "柏盛").trim();
+  return /工資\s*[:：]|油資\s*[:：]|材料\s*[:：]|共計\s*[:：]/.test(text) || (sig && text.includes(sig));
+}
+
+function isLikelyTotalsRow(row, map) {
+  const date = normalizeText(getCellByIndex(row, map.date));
+  const address = normalizeText(getCellByIndex(row, map.address));
+  const amountValues = [map.wage, map.fuel, map.material]
+    .map((index) => normalizeText(getCellByIndex(row, index)))
+    .filter(Boolean);
+  return date === "" && address === "" && amountValues.some(isNumericLike);
+}
+
+function extractMonthFromRows(rows) {
+  for (let i = 0; i < Math.min(rows.length, 3); i++) {
+    for (const cell of rows[i]) {
+      const month = extractMonthFromText(cell);
+      if (month) return month;
+    }
+  }
+  return null;
+}
+
+function extractMonthFromText(value) {
+  const text = normalizeText(value);
+  if (!text) return null;
+  const zhMatch = text.match(/([一二三四五六七八九十]{1,3})月份?/);
+  if (zhMatch && MONTH_MAP[zhMatch[1]]) return zhMatch[1];
+  const numMatch = text.match(/(^|[^0-9])(\d{1,2})\s*月/);
+  if (!numMatch) return null;
+  return MONTH_KEY_BY_NUM[String(Number(numMatch[2]))] || null;
+}
+
+function normalizeImportedDay(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getDate();
+  const text = String(value).trim();
+  if (!text) return null;
+  if (/^\d{1,2}$/.test(text)) {
+    const day = Number(text);
+    return day >= 1 && day <= 31 ? day : null;
+  }
+  const dateLikeMatch = text.match(/(?:\d{2,4}\s*[\/\-年])?\s*(\d{1,2})\s*[\/\-月]\s*(\d{1,2})/);
+  if (dateLikeMatch) {
+    const day = Number(dateLikeMatch[2]);
+    return day >= 1 && day <= 31 ? day : null;
+  }
+  const dayMatch = text.match(/(\d{1,2})\s*日/);
+  if (dayMatch) {
+    const day = Number(dayMatch[1]);
+    return day >= 1 && day <= 31 ? day : null;
+  }
+  return null;
+}
+
+function normalizeImportedAmount(value) {
+  if (value == null) return "";
+  const text = String(value).replace(/,/g, "").trim();
+  if (!text) return "";
+  const number = Number(text);
+  return Number.isFinite(number) ? String(number) : "";
+}
+
+function normalizeText(value) {
+  return String(value ?? "").replace(/\s+/g, "").trim();
+}
+
+function isNumericLike(value) {
+  return Boolean(value) && /^-?\d+(?:\.\d+)?$/.test(String(value).replace(/,/g, ""));
+}
+
+function stripExtension(filename) {
+  return String(filename || "").replace(/\.[^.]+$/, "");
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+/* ============================================================
+   歷史記憶與別名自動學習系統（完全從零開始學習，無預設值）
+   ============================================================ */
+function loadAddressHistory() {
+  try {
+    const raw = localStorage.getItem(ADDR_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // 相容舊版純字串陣列，升級成 { text, count, lastUsed }
+    return parsed
+      .map((item, idx) =>
+        typeof item === "string"
+          ? { text: item.trim(), count: 1, lastUsed: Date.now() - idx * 1000 }
+          : item && typeof item.text === "string"
+          ? { text: item.text.trim(), count: item.count || 1, lastUsed: item.lastUsed || 0 }
+          : null,
+      )
+      .filter((x) => x && x.text);
+  } catch {
+    return [];
+  }
+}
+
+function saveAddressHistory(history) {
+  try {
+    localStorage.setItem(ADDR_HISTORY_KEY, JSON.stringify(history));
+    scheduleFolderSync();
+  } catch (e) {
+    console.error("儲存地址記憶失敗", e);
+  }
+}
+
+function addAddressToHistory(addr) {
+  const trimmed = String(addr || "").trim();
+  if (!trimmed) return;
+  let history = loadAddressHistory();
+  const existing = history.find((h) => h.text === trimmed);
+  if (existing) {
+    existing.count = (existing.count || 1) + 1;
+    existing.lastUsed = Date.now();
+  } else {
+    history.unshift({ text: trimmed, count: 1, lastUsed: Date.now() });
+  }
+  history.sort((a, b) => b.count * 1000000000000 + b.lastUsed - (a.count * 1000000000000 + a.lastUsed));
+  if (history.length > 250) history = history.slice(0, 250);
+  saveAddressHistory(history);
+}
+
+function removeAddressFromHistory(text) {
+  const history = loadAddressHistory().filter((h) => h.text !== text);
+  saveAddressHistory(history);
+}
+
+function loadAmountHistory() {
+  try {
+    const raw = localStorage.getItem(AMOUNT_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : { wage: [], fuel: [], material: [] };
+  } catch {
+    return { wage: [], fuel: [], material: [] };
+  }
+}
+
+function saveAmountHistory(history) {
+  try {
+    localStorage.setItem(AMOUNT_HISTORY_KEY, JSON.stringify(history));
+    scheduleFolderSync();
+  } catch (e) {
+    console.error("儲存金額記憶失敗", e);
+  }
+}
+
+function addAmountToHistory(field, value) {
+  const num = String(Number(value));
+  if (!num || num === "0" || num === "NaN") return;
+  const history = loadAmountHistory();
+  if (!history[field]) history[field] = [];
+  history[field] = history[field].filter((v) => v !== num);
+  history[field].unshift(num);
+  if (history[field].length > 100) history[field] = history[field].slice(0, 100);
+  saveAmountHistory(history);
+}
+
+function loadAliasMap() {
+  try {
+    const raw = localStorage.getItem(ALIAS_MAP_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAliasMap(map) {
+  try {
+    localStorage.setItem(ALIAS_MAP_KEY, JSON.stringify(map));
+    scheduleFolderSync();
+  } catch (e) {
+    console.error("儲存別名記憶失敗", e);
+  }
+}
+
+function normalizeAliasKey(text) {
+  return String(text || "").replace(/\s+/g, "").trim();
+}
+
+function learnAliasIfNeeded(rawNote, finalText) {
+  const raw = String(rawNote || "").trim();
+  const fin = String(finalText || "").trim();
+  if (!raw || !fin || raw === fin) return;
+  // 若只是單純在原本字尾補充細節如 (大門平台)，不當作別名改寫
+  if (fin.startsWith(raw)) return;
+  const key = normalizeAliasKey(raw);
+  if (!key) return;
+  const map = loadAliasMap();
+  map[key] = { raw, target: fin, updatedAt: Date.now() };
+  // 限制最多保留 200 筆最近別名
+  const entries = Object.entries(map).sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
+  saveAliasMap(Object.fromEntries(entries.slice(0, 200)));
+}
+
+function clearAllHistory() {
+  try {
+    localStorage.removeItem(ADDR_HISTORY_KEY);
+    localStorage.removeItem(AMOUNT_HISTORY_KEY);
+    localStorage.removeItem(ALIAS_MAP_KEY);
+    scheduleFolderSync();
+  } catch (e) {
+    console.error("清除記憶失敗", e);
+  }
+}
+
+/* ============================================================
+   建議下拉選單 UI（空欄即顯示常用、支援 Top-Layer Popover 與鍵盤操作）
+   ============================================================ */
+let _suggestionsState = { target: null, items: [], highlightIdx: -1, onSelect: null };
+
+function isSuggestionsOpen() {
+  const dropdown = document.getElementById("global-suggestions");
+  return dropdown && (dropdown.classList.contains("active") || dropdown.matches(":popover-open"));
+}
+
+function showSuggestionsDropdown(
+  targetEl,
+  items,
+  onSelect,
+  { header = "", onDelete = null, onRefresh = null } = {},
+) {
+  const dropdown = document.getElementById("global-suggestions");
+  if (!items.length) {
+    hideSuggestions();
+    return;
+  }
+
+  _suggestionsState = { target: targetEl, items, highlightIdx: -1, onSelect };
+  const rect = targetEl.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  dropdown.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 280)) + "px";
+  dropdown.style.width = Math.max(rect.width, 140) + "px";
+
+  dropdown.innerHTML =
+    (header ? `<div class="suggestions-header">${escHtml(header)}</div>` : "") +
+    items
+      .map(
+        (item, idx) => `
+      <div class="suggestion-item" data-idx="${idx}" data-value="${escHtml(String(item.value))}">
+        <span class="suggestion-text">${escHtml(item.label)}</span>
+        ${
+          onDelete
+            ? `<button class="suggestion-del" type="button" data-del-val="${escHtml(String(item.value))}" title="移除此記憶">✕</button>`
+            : ""
+        }
+      </div>`,
+      )
+      .join("");
+
+  dropdown.querySelectorAll(".suggestion-item").forEach((el) => {
+    el.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".suggestion-del")) return;
+      e.preventDefault();
+      onSelect(el.dataset.value);
+      hideSuggestions();
+    });
+  });
+
+  if (onDelete) {
+    dropdown.querySelectorAll(".suggestion-del").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete(btn.dataset.delVal);
+        // 立即重新整理該欄位建議
+        if (onRefresh) onRefresh();
+        else if (targetEl.classList.contains("address-input")) showAddressSuggestions(targetEl);
+      });
+    });
+  }
+
+  dropdown.classList.add("active");
+  if (typeof dropdown.showPopover === "function") {
+    try {
+      if (!dropdown.matches(":popover-open")) dropdown.showPopover();
+    } catch {
+      // Fallback to fixed display
+    }
+  }
+
+  // 量測實際高度以決定往上或往下展開
+  const dropHeight = Math.min(240, dropdown.scrollHeight || 180);
+  if (spaceBelow < dropHeight + 12 && rect.top > dropHeight + 12) {
+    dropdown.style.top = rect.top - dropHeight - 4 + "px";
+  } else {
+    dropdown.style.top = rect.bottom + 3 + "px";
+  }
+}
+
+function hideSuggestions() {
+  const dropdown = document.getElementById("global-suggestions");
+  if (!dropdown) return;
+  dropdown.classList.remove("active");
+  if (typeof dropdown.hidePopover === "function") {
+    try {
+      if (dropdown.matches(":popover-open")) dropdown.hidePopover();
+    } catch {
+      // Ignore if already closed
+    }
+  }
+  dropdown.innerHTML = "";
+  _suggestionsState = { target: null, items: [], highlightIdx: -1, onSelect: null };
+}
+
+function moveSuggestionHighlight(delta) {
+  const dropdown = document.getElementById("global-suggestions");
+  const els = Array.from(dropdown.querySelectorAll(".suggestion-item"));
+  if (!els.length) return;
+  let next = _suggestionsState.highlightIdx + delta;
+  if (next < 0) next = els.length - 1;
+  if (next >= els.length) next = 0;
+  _suggestionsState.highlightIdx = next;
+  els.forEach((el, i) => el.classList.toggle("highlighted", i === next));
+  els[next].scrollIntoView({ block: "nearest" });
+}
+
+function applyHighlightedSuggestion() {
+  const { items, highlightIdx, onSelect } = _suggestionsState;
+  if (highlightIdx < 0 || !items[highlightIdx] || !onSelect) return false;
+  onSelect(items[highlightIdx].value);
+  return true;
+}
+
+function showAddressSuggestions(inputEl, onPicked) {
+  const query = inputEl.value.trim();
+  const history = loadAddressHistory();
+  if (!history.length) {
+    hideSuggestions();
+    return;
+  }
+
+  const terms = query ? query.split(/\s+/).filter(Boolean) : [];
+  const matches = history
+    .filter((item) => {
+      if (!terms.length) return true;
+      if (item.text === query) return false;
+      return terms.every((t) => item.text.includes(t));
+    })
+    .slice(0, 8);
+
+  if (!matches.length) {
+    hideSuggestions();
+    return;
+  }
+
+  showSuggestionsDropdown(
+    inputEl,
+    matches.map((m) => ({ value: m.text, label: m.text })),
+    (value) => {
+      inputEl.value = value;
+      if (onPicked) {
+        onPicked(value);
+      } else {
+        const rowId = parseInt(inputEl.dataset.rowId, 10);
+        updateRowField(rowId, "address", value);
+        fitTextareaHeight(inputEl);
+      }
+    },
+    {
+      header: query ? "符合的常用地址" : "常用與最近地址（點選直接帶入）",
+      onDelete: (val) => removeAddressFromHistory(val),
+      onRefresh: () => showAddressSuggestions(inputEl, onPicked),
+    },
+  );
+}
+
+function generatePaddedAmounts(prefix) {
+  if (!prefix || !/^\d+$/.test(prefix)) return [];
+  const results = [];
+  let padded = prefix;
+  while (padded.length <= 6) {
+    padded += "0";
+    const num = Number(padded);
+    if (num > 0 && num <= 999999) results.push(String(num));
+  }
+  return results;
+}
+
+function showAmountSuggestions(inputEl, onPicked) {
+  const prefix = inputEl.value.trim();
+  const field = inputEl.dataset.field;
+  const history = loadAmountHistory();
+  const fieldHistory = history[field] || [];
+
+  let merged = [];
+  if (!prefix) {
+    merged = fieldHistory.slice(0, 6);
+  } else if (/^\d+$/.test(prefix)) {
+    const historyMatches = fieldHistory.filter((v) => v.startsWith(prefix) && v !== prefix);
+    const padded = generatePaddedAmounts(prefix);
+    const seen = new Set();
+    for (const v of [...historyMatches, ...padded]) {
+      if (!seen.has(v)) {
+        seen.add(v);
+        merged.push(v);
+      }
+    }
+    merged.sort((a, b) => Number(a) - Number(b));
+  } else {
+    hideSuggestions();
+    return;
+  }
+
+  if (!merged.length) {
+    hideSuggestions();
+    return;
+  }
+
+  showSuggestionsDropdown(
+    inputEl,
+    merged.slice(0, 8).map((v) => ({
+      value: v,
+      label: Number(v).toLocaleString(),
+    })),
+    (value) => {
+      inputEl.value = value;
+      if (onPicked) {
+        onPicked(value);
+      } else {
+        const rowId = parseInt(inputEl.dataset.rowId, 10);
+        updateRowField(rowId, field, value);
+      }
+    },
+    { header: prefix ? "金額建議" : "常用金額" },
+  );
+}
+
+/* ============================================================
+   複製列 & 自動新增空白列
+   ============================================================ */
+function copyRow(sourceId) {
+  const source = state.rows.find((row) => row.id === sourceId);
+  if (!source) return;
+  const newId = state.nextId++;
+  const newRow = {
+    id: newId,
+    date: null,
+    address: source.address,
+    wage: source.wage,
+    fuel: source.fuel,
+    material: source.material,
+  };
+  const idx = state.rows.findIndex((row) => row.id === sourceId);
+  state.rows.splice(idx + 1, 0, newRow);
+  renderTable();
+  updatePreview();
+  persistState();
+  showToast("已複製到下一列");
+}
+
+function autoAddRowIfNeeded(rowId) {
+  const lastRow = state.rows[state.rows.length - 1];
+  if (!lastRow || lastRow.id !== rowId) return;
+  const hasContent =
+    lastRow.date !== null ||
+    lastRow.address.trim() !== "" ||
+    lastRow.wage !== "" ||
+    lastRow.fuel !== "" ||
+    lastRow.material !== "";
+  if (!hasContent) return;
+
+  const newId = state.nextId++;
+  const newRow = createBlankRow(newId);
+  state.rows.push(newRow);
+  const tbody = document.getElementById("table-body");
+  tbody.appendChild(createRowTr(newRow));
+  applyColumnVisibility();
+  persistState();
+}
+
+/* ============================================================
+   Gemini API 與拍照手寫筆記 OCR 系統
+   ============================================================ */
+function restoreGeminiSettingsDom() {
+  document.getElementById("gemini-key-input").value = localStorage.getItem(GEMINI_KEY_STORAGE) || "";
+  const savedModel = localStorage.getItem(GEMINI_MODEL_STORAGE) || "gemini-4-hydrogen";
+  const modelSel = document.getElementById("gemini-model-select");
+  if (Array.from(modelSel.options).some((o) => o.value === savedModel)) {
+    modelSel.value = savedModel;
+  }
+  document.getElementById("gemini-fallback-checkbox").checked =
+    localStorage.getItem(GEMINI_FALLBACK_STORAGE) !== "0";
+}
+
+function getGeminiConfig() {
+  return {
+    apiKey: (localStorage.getItem(GEMINI_KEY_STORAGE) || "").trim(),
+    model: localStorage.getItem(GEMINI_MODEL_STORAGE) || "gemini-4-hydrogen",
+    autoFallback: localStorage.getItem(GEMINI_FALLBACK_STORAGE) !== "0",
+  };
+}
+
+async function testGeminiConnection() {
+  const statusEl = document.getElementById("gemini-test-status");
+  const { apiKey, model } = getGeminiConfig();
+  if (!apiKey) {
+    statusEl.textContent = "請先貼上 Gemini API 金鑰";
+    statusEl.style.color = "var(--red)";
+    return;
+  }
+  statusEl.textContent = `正在測試 ${model} 連線...`;
+  statusEl.style.color = "var(--ink-soft)";
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "請只回覆 OK" }] }],
+          generationConfig: { maxOutputTokens: 16 },
+        }),
+      },
+    );
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error?.message || `HTTP ${res.status}`);
+    }
+    statusEl.textContent = `✅ 連線成功（使用模型：${model}）`;
+    statusEl.style.color = "var(--green-ink)";
+  } catch (err) {
+    statusEl.textContent = `❌ 連線失敗：${err.message}`;
+    statusEl.style.color = "var(--red)";
+  }
+}
+
+async function handlePhotoSelection(event) {
+  const files = Array.from(event.target.files || []).filter((f) => f.type.startsWith("image/"));
+  event.target.value = "";
+  if (!files.length) return;
+
+  if (state.photoImportReplaceMode) {
+    await closeModal(document.getElementById("startup-dialog"));
+  }
+  await launchPhotoFiles(files);
+}
+
+async function launchPhotoFiles(files) {
+  const { apiKey } = getGeminiConfig();
+  const dialog = document.getElementById("ocr-dialog");
+  openModal(dialog);
+
+  if (!apiKey) {
+    state.pendingOcrFiles = files;
+    showOcrPanel("apikey");
+    document.getElementById("ocr-inline-key-input").focus();
+    return;
+  }
+
+  await startOcrPipeline(files);
+}
+
+function showOcrPanel(mode) {
+  document.getElementById("ocr-apikey-view").hidden = mode !== "apikey";
+  document.getElementById("ocr-loading-view").hidden = mode !== "loading";
+  document.getElementById("ocr-split-view").hidden = mode !== "split";
+  const showMeta = mode === "split";
+  document.getElementById("ocr-month-wrap").hidden = !showMeta;
+  document.getElementById("ocr-count-pill").hidden = !showMeta;
+  if (!showMeta) document.getElementById("ocr-uncertain-pill").hidden = true;
+}
+
+function cleanupOcrPhotos() {
+  ocrState.photos.forEach((p) => {
+    if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+  });
+  ocrState.photos = [];
+}
+
+async function closeOcrDialog() {
+  const cancelledFromStartup = state.photoImportReplaceMode;
+  state.photoImportReplaceMode = false;
+  if (ocrState.abortController) {
+    ocrState.abortController.abort();
+    ocrState.abortController = null;
+  }
+  cleanupOcrPhotos();
+  ocrState.allRows = [];
+  ocrState.pendingBatchAlias = null;
+  document.getElementById("ocr-alias-banner").hidden = true;
+  await closeModal(document.getElementById("ocr-dialog"));
+  if (cancelledFromStartup) {
+    openStartupStepDialog();
+  } else if (!state.rows.length) {
+    initializeFreshDocument({ persist: false, focusFirstRow: false });
+  }
+}
+
+async function preprocessImageFile(file) {
+  const previewUrl = URL.createObjectURL(file);
+  const bitmap = await createImageBitmap(file);
+  const maxDim = 1600;
+  let width = bitmap.width;
+  let height = bitmap.height;
+  if (width > maxDim || height > maxDim) {
+    const ratio = maxDim / Math.max(width, height);
+    width = Math.round(width * ratio);
+    height = Math.round(height * ratio);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
+  const base64 = dataUrl.split(",")[1];
+  return { name: file.name, base64, mimeType: "image/jpeg", previewUrl };
+}
+
+function buildGeminiOcrPrompt(photosCount, defaultMonthNum) {
+  const addressHistory = loadAddressHistory().slice(0, 80).map((h) => h.text);
+  const aliasEntries = Object.values(loadAliasMap())
+    .slice(0, 80)
+    .map((a) => `${a.raw} => ${a.target}`);
+
+  const lines = [
+    `你是一位專門幫台灣工程／水電／裝修師傅整理手寫工作日誌的助手。`,
+    `我會傳給你 ${photosCount} 張手寫行事曆／日誌照片（編號 photoIndex 從 0 到 ${photosCount - 1}）。`,
+    `請仔細閱讀每一天格子的手寫文字與金額，轉成結構化 JSON：`,
+    ``,
+    `【關鍵辨識與格式規則】`,
+    `1. 月份判斷：看筆記頁首印的月份（例如 "10 October" 代表 10 月；若頁首寫跨月如 "10/11 Oct./Nov."，請判斷主要月份為幾月並填入 detectedMonthNum，且為每一列正確標記它實際屬於哪一個月 monthNum，例如 26~31 日是 10，1 日是 11）。若照片完全看不到月份，請參考預設月份 ${defaultMonthNum}。`,
+    `2. 同一天多個地點：如果同一天內寫了超過一個不同工地或地址，請**拆成多列**（同一個 date 各自一筆，各自對應屬於它的金額；若金額只寫在當天總數旁，放在主要那一列，不要重複計算金額）。`,
+    `3. 略過條件：寫「休」的日子略過；被畫線整行劃掉刪除的項目略過（但如果是沒劃掉、僅在括號內註記「(沒做)」請保留）。`,
+    `4. 金額分類與加總：`,
+    `   - 寫「支 ...」或主工錢（例如「支 3500+1000」）請自動相加後填入 wage（4500）。`,
+    `   - 寫「油」、「油停」、「+300油」等車馬油資請填入 fuel。`,
+    `   - 買材料或工具配件（例如「(鋸片350)元」、「材料...」）請填入 material。`,
+    `   - 若金額旁有「?」問號或手寫字跡模糊沒把握，請設 uncertain: true 並簡短說明 uncertainReason（不超過 12 字）。`,
+    `5. 原字與建議對照：`,
+    `   - rawAddress 請忠實讀出筆記紙上原本寫的地點／備註（繁體中文）。`,
+    `   - suggestedAddress：若下方提供「別名對照表」中有對應簡稱，請自動轉為對應的正式名稱；若與「歷史地址」明顯是同一工地僅字跡潦草，可規範成歷史寫法；否則請與 rawAddress 相同。切勿憑空編造照片裡沒有的地址。`,
+  ];
+
+  if (aliasEntries.length) {
+    lines.push("", "【過去學到的筆記別名對照（原筆記 => 正式報表名稱）】");
+    lines.push(...aliasEntries.map((s) => `- ${s}`));
+  }
+  if (addressHistory.length) {
+    lines.push("", "【師傅常用與歷史寫過的地址清單（供草寫辨識對照）】");
+    lines.push(...addressHistory.map((s) => `- ${s}`));
+  }
+
+  return lines.join("\n");
+}
+
+async function requestGeminiOcrBatch(photos, defaultMonthNum, signal) {
+  const { apiKey, model, autoFallback } = getGeminiConfig();
+  const candidates = [model];
+  if (autoFallback) {
+    if (!candidates.includes("gemini-3.8-flash")) candidates.push("gemini-3.8-flash");
+    if (!candidates.includes("gemini-3.5-flash-lite")) candidates.push("gemini-3.5-flash-lite");
+  }
+
+  const parts = [{ text: buildGeminiOcrPrompt(photos.length, defaultMonthNum) }];
+  photos.forEach((p, idx) => {
+    parts.push({ text: `--- 以下為第 ${idx + 1} 張照片 (photoIndex = ${idx}) ---` });
+    parts.push({ inline_data: { mime_type: p.mimeType, data: p.base64 } });
+  });
+
+  const payload = {
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          detectedMonthNum: { type: "INTEGER", nullable: true },
+          monthHeaderRaw: { type: "STRING", nullable: true },
+          rows: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                photoIndex: { type: "INTEGER" },
+                monthNum: { type: "INTEGER", nullable: true },
+                date: { type: "INTEGER", nullable: true },
+                rawAddress: { type: "STRING" },
+                suggestedAddress: { type: "STRING" },
+                wage: { type: "NUMBER", nullable: true },
+                fuel: { type: "NUMBER", nullable: true },
+                material: { type: "NUMBER", nullable: true },
+                uncertain: { type: "BOOLEAN" },
+                uncertainReason: { type: "STRING", nullable: true },
+              },
+              required: ["photoIndex", "rawAddress", "suggestedAddress", "uncertain"],
+            },
+          },
+        },
+        required: ["rows"],
+      },
+    },
+  };
+
+  let lastError = null;
+  for (let i = 0; i < candidates.length; i++) {
+    const m = candidates[i];
+    if (i > 0) {
+      document.getElementById("ocr-loading-sub").textContent = `原模型忙碌或額度已滿，自動改用 ${m} 重試中...`;
+    }
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+        signal,
+      },
+    );
+
+    if (res.ok) {
+      const json = await res.json();
+      const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error("AI 未回傳可解析的內容");
+      return { parsed: JSON.parse(rawText), usedModel: m };
+    }
+
+    const errJson = await res.json().catch(() => ({}));
+    const msg = errJson?.error?.message || `HTTP ${res.status}`;
+    lastError = new Error(msg);
+    const canRetry = res.status === 429 || res.status === 503 || res.status === 404;
+    if (!canRetry || i === candidates.length - 1) throw lastError;
+  }
+  throw lastError || new Error("辨識失敗");
+}
+
+async function startOcrPipeline(files) {
+  cleanupOcrPhotos();
+  ocrState.allRows = [];
+  ocrState.showCrossMonth = false;
+  ocrState.activePhotoIndex = 0;
+  ocrState.pendingBatchAlias = null;
+  document.getElementById("ocr-alias-banner").hidden = true;
+
+  showOcrPanel("loading");
+  document.getElementById("ocr-loading-title").textContent = `正在整理並讀取 ${files.length} 張筆記照片...`;
+  document.getElementById("ocr-loading-sub").textContent = "會自動依筆記頁首判斷月份並過濾跨月日期";
+
+  ocrState.abortController = new AbortController();
+  const signal = ocrState.abortController.signal;
+
+  try {
+    const processed = [];
+    for (const f of files) {
+      if (signal.aborted) return;
+      processed.push(await preprocessImageFile(f));
+    }
+    ocrState.photos = processed;
+
+    const fallbackMonthNum =
+      state.photoImportReplaceMode
+        ? MONTH_MAP[document.getElementById("startup-month-select").value] || getMonthNum()
+        : getMonthNum();
+
+    // 若一次選超過 4 張，分批送避免單次輸出過長
+    const batchSize = 4;
+    let detectedMonth = null;
+    let uidCounter = 1;
+    let lastUsedModel = "";
+
+    for (let start = 0; start < processed.length; start += batchSize) {
+      const slice = processed.slice(start, start + batchSize);
+      document.getElementById("ocr-loading-sub").textContent =
+        processed.length > batchSize
+          ? `正在辨識第 ${start + 1}～${Math.min(start + batchSize, processed.length)} 張（共 ${processed.length} 張）...`
+          : `正在呼叫 ${getGeminiConfig().model} 讀取手寫筆記...`;
+
+      const { parsed, usedModel } = await requestGeminiOcrBatch(slice, fallbackMonthNum, signal);
+      lastUsedModel = usedModel;
+      if (!detectedMonth && parsed.detectedMonthNum >= 1 && parsed.detectedMonthNum <= 12) {
+        detectedMonth = parsed.detectedMonthNum;
+      }
+
+      const aliasMap = loadAliasMap();
+      (parsed.rows || []).forEach((item) => {
+        const photoIdx = start + (typeof item.photoIndex === "number" ? item.photoIndex : 0);
+        const rawAddr = String(item.rawAddress || "").trim();
+        let addr = String(item.suggestedAddress || rawAddr).trim();
+
+        // 若 Gemini 未套用但本地已有確切別名對照，則補套用
+        const aliasHit = aliasMap[normalizeAliasKey(rawAddr)];
+        if (aliasHit && (!addr || addr === rawAddr)) {
+          addr = aliasHit.target;
+        }
+
+        const rowMonthNum =
+          item.monthNum >= 1 && item.monthNum <= 12
+            ? item.monthNum
+            : detectedMonth || fallbackMonthNum;
+
+        ocrState.allRows.push({
+          uid: uidCounter++,
+          photoIndex: Math.min(Math.max(0, photoIdx), processed.length - 1),
+          monthNum: rowMonthNum,
+          date: item.date >= 1 && item.date <= 31 ? Number(item.date) : null,
+          rawAddress: rawAddr,
+          address: addr,
+          wage: item.wage != null && Number(item.wage) > 0 ? String(item.wage) : "",
+          fuel: item.fuel != null && Number(item.fuel) > 0 ? String(item.fuel) : "",
+          material: item.material != null && Number(item.material) > 0 ? String(item.material) : "",
+          uncertain: Boolean(item.uncertain),
+          uncertainReason: String(item.uncertainReason || "").trim(),
+        });
+      });
+    }
+
+    ocrState.targetMonthNum = detectedMonth || fallbackMonthNum;
+    const targetMonthKey = MONTH_KEY_BY_NUM[String(ocrState.targetMonthNum)];
+    if (targetMonthKey) {
+      document.getElementById("ocr-month-select").value = targetMonthKey;
+    }
+
+    renderOcrPhotoTabs();
+    switchOcrPhoto(0);
+    renderOcrDraftRows();
+    showOcrPanel("split");
+
+    if (lastUsedModel && lastUsedModel !== getGeminiConfig().model) {
+      showToast(`已自動改用備援模型 ${lastUsedModel} 完成辨識`);
+    }
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    console.error("OCR 辨識失敗", err);
+    await closeOcrDialog();
+    showToast(`照片辨識失敗：${err.message}`);
+  } finally {
+    ocrState.abortController = null;
+  }
+}
+
+function getVisibleOcrRows() {
+  if (ocrState.showCrossMonth) return ocrState.allRows;
+  return ocrState.allRows.filter(
+    (r) => r.monthNum == null || Number(r.monthNum) === Number(ocrState.targetMonthNum),
+  );
+}
+
+function renderOcrDraftRows() {
+  const tbody = document.getElementById("ocr-draft-body");
+  tbody.innerHTML = "";
+
+  const visibleRows = getVisibleOcrRows();
+  const excludedCount = ocrState.allRows.length - visibleRows.length;
+  const uncertainCount = visibleRows.filter((r) => r.uncertain).length;
+
+  const targetMonthKey = MONTH_KEY_BY_NUM[String(ocrState.targetMonthNum)] || "";
+  document.getElementById("ocr-count-pill").textContent = `共 ${visibleRows.length} 筆`;
+  const uncPill = document.getElementById("ocr-uncertain-pill");
+  uncPill.hidden = uncertainCount === 0;
+  uncPill.textContent = `⚠ ${uncertainCount} 筆待確認`;
+
+  const filterNote = document.getElementById("ocr-filter-note");
+  if (excludedCount > 0 || ocrState.showCrossMonth) {
+    filterNote.hidden = false;
+    document.getElementById("ocr-filter-note-text").textContent = ocrState.showCrossMonth
+      ? `目前顯示全部（含跨月紀錄）`
+      : `已自動過濾 ${excludedCount} 筆非${targetMonthKey}月份的跨月紀錄`;
+    document.getElementById("ocr-toggle-crossmonth-btn").textContent = ocrState.showCrossMonth
+      ? "只看本月"
+      : "顯示跨月紀錄";
+  } else {
+    filterNote.hidden = true;
+  }
+
+  if (!visibleRows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:28px; color:var(--ink-muted);">此月份沒有辨識到有效工作列，可切換上方報表月份或顯示跨月紀錄確認。</td></tr>`;
+    return;
+  }
+
+  visibleRows.forEach((row) => {
+    const tr = document.createElement("tr");
+    tr.className =
+      "ocr-draft-row" +
+      (row.uncertain ? " is-uncertain" : "") +
+      (row.photoIndex === ocrState.activePhotoIndex ? " is-active" : "");
+
+    const hasAliasDiff = row.rawAddress && row.address.trim() !== row.rawAddress.trim();
+    tr.innerHTML = `
+      <td>
+        <input type="text" inputmode="numeric" class="amount-input ocr-date-input" value="${row.date !== null ? row.date : ""}" />
+      </td>
+      <td>
+        <textarea class="address-input ocr-addr-input" rows="1">${escHtml(row.address)}</textarea>
+        ${
+          hasAliasDiff
+            ? `<div class="ocr-raw-note">筆記原字：${escHtml(row.rawAddress)} <button type="button" class="ocr-tiny-link ocr-revert-btn">還原</button></div>`
+            : ""
+        }
+        ${
+          row.uncertain
+            ? `<div class="ocr-uncertain-note">⚠ ${escHtml(row.uncertainReason || "請對照右圖確認")}</div>`
+            : ""
+        }
+      </td>
+      <td><input type="text" inputmode="decimal" class="amount-input ocr-amt-input" data-field="wage" value="${escHtml(row.wage)}" /></td>
+      <td><input type="text" inputmode="decimal" class="amount-input ocr-amt-input" data-field="fuel" value="${escHtml(row.fuel)}" /></td>
+      <td><input type="text" inputmode="decimal" class="amount-input ocr-amt-input" data-field="material" value="${escHtml(row.material)}" /></td>
+      <td><button type="button" class="del-btn ocr-del-btn" title="刪除此列">✕</button></td>
+    `;
+
+    tr.addEventListener("focusin", () => {
+      if (row.photoIndex !== ocrState.activePhotoIndex) {
+        switchOcrPhoto(row.photoIndex);
+      }
+      document.querySelectorAll(".ocr-draft-row").forEach((el) => el.classList.remove("is-active"));
+      tr.classList.add("is-active");
+    });
+
+    const dateInp = tr.querySelector(".ocr-date-input");
+    dateInp.addEventListener("input", () => {
+      const n = parseInt(dateInp.value.replace(/[^\d]/g, ""), 10);
+      row.date = n >= 1 && n <= 31 ? n : null;
+    });
+
+    const addrInp = tr.querySelector(".ocr-addr-input");
+    let beforeEdit = row.address;
+    const pickOcrAddress = (val) => {
+      const prev = beforeEdit;
+      beforeEdit = val.trim();
+      row.address = val;
+      fitTextareaHeight(addrInp);
+      if (prev && prev !== beforeEdit) {
+        checkOcrBatchReplace(prev, beforeEdit, row.uid);
+      }
+    };
+    addrInp.addEventListener("focus", () => {
+      beforeEdit = addrInp.value.trim();
+      showAddressSuggestions(addrInp, pickOcrAddress);
+    });
+    addrInp.addEventListener("input", () => {
+      row.address = addrInp.value;
+      fitTextareaHeight(addrInp);
+      showAddressSuggestions(addrInp, pickOcrAddress);
+    });
+    addrInp.addEventListener("blur", () => {
+      setTimeout(hideSuggestions, 150);
+      const afterEdit = addrInp.value.trim();
+      if (afterEdit && beforeEdit && afterEdit !== beforeEdit) {
+        checkOcrBatchReplace(beforeEdit, afterEdit, row.uid);
+      }
+    });
+    setTimeout(() => fitTextareaHeight(addrInp), 0);
+
+    const revertBtn = tr.querySelector(".ocr-revert-btn");
+    if (revertBtn) {
+      revertBtn.addEventListener("click", () => {
+        row.address = row.rawAddress;
+        renderOcrDraftRows();
+      });
+    }
+
+    tr.querySelectorAll(".ocr-amt-input").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const cleaned = inp.value.replace(/[^\d.+\-\s]/g, "");
+        if (cleaned !== inp.value) inp.value = cleaned;
+        row[inp.dataset.field] = inp.value;
+      });
+      inp.addEventListener("blur", () => {
+        const evaled = evaluateAmountExpr(inp.value);
+        if (evaled !== inp.value) {
+          inp.value = evaled;
+          row[inp.dataset.field] = evaled;
+        }
+      });
+    });
+
+    tr.querySelector(".ocr-del-btn").addEventListener("click", () => {
+      ocrState.allRows = ocrState.allRows.filter((x) => x.uid !== row.uid);
+      renderOcrDraftRows();
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function checkOcrBatchReplace(oldVal, newVal, editedUid) {
+  const visible = getVisibleOcrRows();
+  const matches = visible.filter(
+    (r) => r.uid !== editedUid && (r.address.trim() === oldVal || r.rawAddress.trim() === oldVal),
+  );
+  if (!matches.length) return;
+  ocrState.pendingBatchAlias = { oldVal, newVal };
+  document.getElementById("ocr-alias-banner-text").textContent =
+    `偵測到還有 ${matches.length} 列也是「${oldVal}」`;
+  document.getElementById("ocr-alias-apply-btn").textContent = `一併改為「${newVal}」並記住`;
+  document.getElementById("ocr-alias-banner").hidden = false;
+}
+
+function applyOcrBatchAlias() {
+  if (!ocrState.pendingBatchAlias) return;
+  const { oldVal, newVal } = ocrState.pendingBatchAlias;
+  getVisibleOcrRows().forEach((r) => {
+    if (r.address.trim() === oldVal || r.rawAddress.trim() === oldVal) {
+      r.address = newVal;
+    }
+  });
+  learnAliasIfNeeded(oldVal, newVal);
+  addAddressToHistory(newVal);
+  ocrState.pendingBatchAlias = null;
+  document.getElementById("ocr-alias-banner").hidden = true;
+  renderOcrDraftRows();
+  showToast(`已一併更換並記住對照：${oldVal} → ${newVal}`);
+}
+
+function renderOcrPhotoTabs() {
+  const tabsEl = document.getElementById("ocr-photo-tabs");
+  tabsEl.innerHTML = ocrState.photos
+    .map(
+      (p, idx) =>
+        `<button type="button" class="ocr-photo-tab ${idx === ocrState.activePhotoIndex ? "active" : ""}" data-photo-idx="${idx}">第 ${idx + 1} 張</button>`,
+    )
+    .join("");
+  tabsEl.querySelectorAll(".ocr-photo-tab").forEach((btn) => {
+    btn.addEventListener("click", () => switchOcrPhoto(Number(btn.dataset.photoIdx)));
+  });
+}
+
+function switchOcrPhoto(idx) {
+  if (!ocrState.photos[idx]) return;
+  ocrState.activePhotoIndex = idx;
+  document.getElementById("ocr-photo-img").src = ocrState.photos[idx].previewUrl;
+  document.querySelectorAll(".ocr-photo-tab").forEach((b, i) => {
+    b.classList.toggle("active", i === idx);
+  });
+}
+
+async function commitOcrRowsToMain() {
+  const rowsToInsert = getVisibleOcrRows();
+  if (!rowsToInsert.length) {
+    showToast("沒有可加入的資料列");
+    return;
+  }
+
+  const targetMonthKey = MONTH_KEY_BY_NUM[String(ocrState.targetMonthNum)];
+  if (state.photoImportReplaceMode) {
+    initializeFreshDocument({
+      persist: false,
+      focusFirstRow: false,
+      monthOverride: targetMonthKey || null,
+    });
+  } else if (targetMonthKey && !hasMeaningfulRows()) {
+    document.getElementById("month-select").value = targetMonthKey;
+  }
+
+  // 移除尾端純空白列再附加
+  while (
+    state.rows.length > 0 &&
+    state.rows[state.rows.length - 1].date === null &&
+    !state.rows[state.rows.length - 1].address.trim() &&
+    !state.rows[state.rows.length - 1].wage &&
+    !state.rows[state.rows.length - 1].fuel &&
+    !state.rows[state.rows.length - 1].material
+  ) {
+    state.rows.pop();
+  }
+
+  rowsToInsert.forEach((item) => {
+    const finalAddr = item.address.trim();
+    const w = evaluateAmountExpr(item.wage);
+    const f = evaluateAmountExpr(item.fuel);
+    const m = evaluateAmountExpr(item.material);
+
+    if (finalAddr) {
+      addAddressToHistory(finalAddr);
+      if (item.rawAddress) learnAliasIfNeeded(item.rawAddress, finalAddr);
+    }
+    if (w && Number(w) > 0) addAmountToHistory("wage", w);
+    if (f && Number(f) > 0) addAmountToHistory("fuel", f);
+    if (m && Number(m) > 0) addAmountToHistory("material", m);
+
+    state.rows.push({
+      id: state.nextId++,
+      date: item.date,
+      address: finalAddr,
+      wage: w,
+      fuel: f,
+      material: m,
+    });
+  });
+
+  // 最後補一列空白方便繼續接續填寫
+  state.rows.push(createBlankRow(state.nextId++));
+
+  applyColumnVisibility();
+  renderTable();
+  updatePreview();
+  persistState();
+
+  state.photoImportReplaceMode = false;
+  await closeOcrDialog();
+  showToast(`✅ 已加入 ${rowsToInsert.length} 筆辨識資料`);
+}
+
+/* ============================================================
+   Toast 與浮動匯出與雜項工具
+   ============================================================ */
+function showToast(message, { actionLabel = "", duration = 3200, onAction = null } = {}) {
+  const toast = document.getElementById("global-toast");
+  if (!toast) return;
+  if (_toastTimer) clearTimeout(_toastTimer);
+
+  toast.innerHTML = "";
+  const msgSpan = document.createElement("span");
+  msgSpan.textContent = message;
+  toast.appendChild(msgSpan);
+
+  if (actionLabel && onAction) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action-btn";
+    btn.textContent = actionLabel;
+    btn.addEventListener("click", () => {
+      toast.classList.remove("show");
+      onAction();
+    });
+    toast.appendChild(btn);
+  }
+
+  toast.classList.add("show");
+  _toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, duration);
+}
+
+function escHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function toggleExportMenu() {
+  document.getElementById("export-fab-menu").classList.toggle("active");
+}
+
+function closeExportMenu() {
+  document.getElementById("export-fab-menu").classList.remove("active");
+}
+    </script>
+  </body>
+</html>
